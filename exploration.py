@@ -3,15 +3,15 @@ from music21 import *
 
 # configure.run()
 
-# piece = converter.parseFile("chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml")
-piece = converter.parse("chorales/test.musicxml")
+piece = converter.parseFile("chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml")
+# piece = converter.parse("chorales/test.musicxml")
 print(len(piece.parts))
 
 piece.show('text')
-continuo = piece.parts[-1]
-continuo.show('text')
-measure1 = continuo.measure(1)
-measure1.show('text')
+# continuo = piece.parts[-1]
+# continuo.show('text')
+# measure1 = continuo.measure(1)
+# measure1.show('text')
 
 # gets all fb notation since they're attached to notes
 # however some fb notation isn't necessarily attached TO any notes..

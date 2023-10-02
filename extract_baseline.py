@@ -2,7 +2,7 @@ from xml.etree.ElementTree import Element
 from lxml import etree
 from copy import deepcopy
 
-def extract_FB(score_path):
+def extract_FB(score_path, use_music21_realisation = False):
     score_tree = etree.parse(score_path)
     root = score_tree.getroot()
 
@@ -10,23 +10,28 @@ def extract_FB(score_path):
     parts = list(root.iter("part"))
     
     # fb is always contained in the last part
-    bass = parts[-1]
-    # print(etree.tostring(bass, encoding="unicode"))
+    continuo = parts[-1]
     
     # how many divisions in a quaver note
-    divisions = int(bass.xpath('measure[1]/attributes/divisions')[0].text)
-    print(divisions)
-
+    # divisions = int(bass.xpath('measure[1]/attributes/divisions')[0].text)
     fb = etree.Element("part", id="FB")
+    if (use_music21_realisation) :
+        # NOTE: assumes bass voice is second to last part
+        bass = list(parts[-2].iter("measure"))
+        continuo_measures = list(continuo.iter("measure"))
+        for i in range(len(bass)):
+            measure = combine_bassvoice_and_FB(continuo_measures[i], bass[i])
+            fb.append(measure)
 
-    # measures =  bass.iter("measure")
-    for measure in bass.iter("measure"):
-        fb_only = create_FB_measure(measure)
-        fb.append(fb_only)
+        # TODO: add part-list info here
+
+    else:
+        for measure in continuo.iter("measure"):
+            fb_only = create_FB_measure(measure)
+            fb.append(fb_only)
     
     return fb
 
-    # etree.SubElement()
 
     # TODO: basically extract this into its own FB xmltree - preserve as much info as possible, minus the x and y positioning
 
@@ -82,7 +87,16 @@ def create_FB_measure(measure: Element) -> Element:
     return FB_measure 
 
 
-
+# instead of creating a seperate FB part, combines bass voice part and the FB notations as lyrics
+# in order to use the music21 realisations
+# since it is 1:1 each FB notation is matched to a bass voice note or a new note is created
+# TODO: make sure this part is actual valid musicxml eg. adding part-list stuff to it
+def combine_bassvoice_and_FB(continuo, bass):
+    # steps:
+    # 1. create new measure
+    # 2. traverse through continuo part
+    # 3. do we need bass? just double continuo notes if there are multiple fbs under it? 
+    # 4. also make sure to turn figured bass into lyrics
 
 
 def main():
