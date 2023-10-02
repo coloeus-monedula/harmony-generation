@@ -2,6 +2,20 @@ from xml.etree.ElementTree import Element
 from lxml import etree
 from copy import deepcopy
 
+
+# modifiers dictionary taken from 
+# https://github.com/cuthbertLab/music21/blob/master/music21/figuredBass/notation.py 
+modifiersDictXmlToM21 = {
+    'sharp': '#',
+    'flat': 'b',
+    'natural': '\u266e',
+    'double-sharp': '##',
+    'flat-flat': 'bb',
+    'backslash': '\\',
+    'slash': '/',
+    'cross': '+'
+}
+
 def extract_FB(score_path, use_music21_realisation = False):
     score_tree = etree.parse(score_path)
     root = score_tree.getroot()
@@ -23,7 +37,13 @@ def extract_FB(score_path, use_music21_realisation = False):
             measure = combine_bassvoice_and_FB(continuo_measures[i], bass[i])
             fb.append(measure)
 
-        # TODO: add part-list info here
+        #add part-list info here
+        # TODO: move this to a place where it'll "stick"
+        fb_scorepart = etree.Element("score-part", id="FB")
+        etree.SubElement(fb_scorepart, "part-name").text = "Bass and FB"
+
+        part_list = root.xpath("./part-list")[0]
+        part_list.append(fb_scorepart)
 
     else:
         for measure in continuo.iter("measure"):
@@ -90,13 +110,133 @@ def create_FB_measure(measure: Element) -> Element:
 # instead of creating a seperate FB part, combines bass voice part and the FB notations as lyrics
 # in order to use the music21 realisations
 # since it is 1:1 each FB notation is matched to a bass voice note or a new note is created
-# TODO: make sure this part is actual valid musicxml eg. adding part-list stuff to it
-def combine_bassvoice_and_FB(continuo, bass):
+
+# NOTE: assumes bass and continuo have the same notes albeit transposed an octave.
+def combine_bassvoice_and_FB(continuo: Element, bass: Element) -> Element:
+    bass_attrib = dict(bass.attrib)
+
+    FB_measure:Element = etree.Element("measure")
+
+    for attrib in bass_attrib:
+        FB_measure.set(attrib, bass_attrib.get(attrib))
+
+    # traverse through bass and continuo part at same time
+    continuo_children = continuo.xpath("./*")
+    bass_children = bass.xpath("./*")
+    bass_child: Element = bass_children[0]
+    temp_fb = []
+
+    # assuming bass and continuo have same notes continuo will always be equal or longer due to also having FB too 
+    for child in continuo_children:
+        if (child.tag == "figured-bass"):
+            # 2D array
+            temp_fb.append(turn_FBxml_into_lyrics(child))
+        elif (child.tag == "note"):
+            # advances bass to the next <note>. anything that isn't <note> gets appended to FB measure
+            while (bass_child is not None and bass_child.tag != "note"):
+                FB_measure.append(deepcopy(bass_child))
+                bass_child = bass_child.getnext()
+
+            if len(temp_fb) == 1:
+                # adds lyrics 
+                lyrics = temp_fb[0]
+                fb_bass = append_lyrics_to_bass(deepcopy(bass_child), lyrics)
+                FB_measure.append(fb_bass)
+                
+            elif len(temp_fb) == 0:
+                FB_measure.append(deepcopy(bass_child))
+            else: 
+                # creates new note using each fb's duration
+                for fb in temp_fb:
+                    fb_bass = create_new_bassnote(fb, bass_child)
+                    FB_measure.append(fb_bass)
+
+            temp_fb = []
+
+
+
+def append_lyrics_to_bass(fb_bass, lyrics):
+    for lyric in lyrics:
+        fb_bass.append(lyric)
+    return fb_bass
+
+def create_new_bassnote(fb: Element, bass_child: Element):
+    # fetch duration value from first <lyric> and add to copied <note>
+    # then remove it from <lyrics>
+    new_duration = fb.xpath("./duration")[0]
+    bassnote = deepcopy(bass_child)
+    bassnote.xpath("./duration")[0].text = new_duration.text
+
+    fb[0].remove(new_duration)
+    fb_bass = append_lyrics_to_bass(bassnote, fb)
+    return fb_bass
+
+    
     # steps:
     # 1. create new measure
     # 2. traverse through continuo part
-    # 3. do we need bass? just double continuo notes if there are multiple fbs under it? 
+    # 3. do we need bass? just double continuo notes if there are multiple fbs under it? WE NEED BASS BC IT'S AN OCTAVE UP
     # 4. also make sure to turn figured bass into lyrics
+
+# transforms into lyrics xml tag
+# if multiple have to add number attribute
+# if has duration element keep that but remove later ADD TO FIRST LYRIC ONLY (of numbered elements)
+def turn_FBxml_into_lyrics(FBxml: Element) -> []:
+    lyrics = []
+
+    figures = FBxml.xpath("./figure")
+    duration = FBxml.find("duration")
+    for i in range (len(figures)):
+        figure:Element = figures[i]
+        number = i+1
+        lyric = etree.Element("lyric", number=number)
+
+        # appends duration to first <lyric> for use in later processing
+        if (i == 0 and duration is not None):
+            dur = etree.SubElement(lyric, "duration")
+            dur.text = duration.text
+        
+        # add <figure-number> and modifier. 
+        # NOTE: if has modifier and no number, assumed to be 3 by music21.
+        # TODO: confirm bach chorales doesn't use <extend>. also how to deal with backslash? just write it in and see what happens
+        # https://github.com/cuthbertLab/music21/blob/master/music21/figuredBass/notation.py read this for accepted notation
+        fig_num = figure.findtext("figure-number")
+        prefix = figure.findtext("prefix")
+        suffix = figure.findtext("suffix")
+
+        fig_string = ""
+        # turn prefix and suffix into equivalent m21 notations
+        if prefix is not None:
+            prefix_m21 = modifiersDictXmlToM21.get(prefix)
+            text = prefix_m21 if prefix_m21 is not None else prefix
+
+            fig_string = fig_string + text
+
+        if fig_num is not None:
+            fig_string = fig_string + fig_num
+        
+        if suffix is not None:
+            suffix_m21 = modifiersDictXmlToM21.get(suffix)
+            text = suffix_m21 if suffix_m21 is not None else suffix
+
+            fig_string = fig_string + text
+
+        fig_string_xml = etree.SubElement(lyric, "text")
+        fig_string_xml.text = fig_string
+
+        
+        lyrics.append(lyric)
+
+    return lyrics
+
+        
+    # check if multiple <figure>s - these are converted to 1:1 <lyrics> with number appended.
+        #convert.
+        # check if duration element is there.  duration added to first one as subelement if so
+    # no multiple <figure>
+        #convert.
+        # check duration element add if so
+
 
 
 def main():

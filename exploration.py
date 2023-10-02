@@ -45,3 +45,4 @@ piece.flatten().lyrics()
 
 # figured bass notation is stored seperately?? maybe the baseline needs to be bespoke programmed?
 
+# https://github.com/Boffl/FiguredBass/tree/main for 18th century harmonisation rules
