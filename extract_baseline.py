@@ -16,7 +16,25 @@ modifiersDictXmlToM21 = {
     'cross': '+'
 }
 
-def extract_FB(score_path, use_music21_realisation = False):
+# names taken from https://w3c.github.io/musicxml/musicxml-reference/data-types/note-type-value/
+# amount of division each note takes up when division = 1 (ie. crotchet is 1)
+# 2 d.p at the moment
+standardNoteTypeValue = {
+    0.03: "128th",
+    0.06: "64th",
+    0.13: "32nd",
+    0.25: "16th",
+    0.5 : "eighth",
+    1: "quarter",
+    2: "half",
+    4: "whole",
+    8: "breve",
+    16: "long",
+    32: "maxima"
+}
+
+
+def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretree = False):
     score_tree = etree.parse(score_path)
     root = score_tree.getroot()
 
@@ -31,14 +49,14 @@ def extract_FB(score_path, use_music21_realisation = False):
     fb = etree.Element("part", id="FB")
     if (use_music21_realisation) :
         # NOTE: assumes bass voice is second to last part
+        divisions = int(parts[-2].xpath('measure[1]/attributes/divisions')[0].text)
         bass = list(parts[-2].iter("measure"))
         continuo_measures = list(continuo.iter("measure"))
         for i in range(len(bass)):
-            measure = combine_bassvoice_and_FB(continuo_measures[i], bass[i])
+            measure = combine_bassvoice_and_FB(continuo_measures[i], bass[i], divisions)
             fb.append(measure)
 
         #add part-list info here
-        # TODO: move this to a place where it'll "stick"
         fb_scorepart = etree.Element("score-part", id="FB")
         etree.SubElement(fb_scorepart, "part-name").text = "Bass and FB"
 
@@ -50,7 +68,12 @@ def extract_FB(score_path, use_music21_realisation = False):
             fb_only = create_FB_measure(measure)
             fb.append(fb_only)
     
-    return fb
+    if (return_whole_scoretree):
+        root.append(fb)
+        # NOTE: scoretree returned if not doing music21 realisation is not "proper" MusicXML
+        return score_tree
+    else:
+        return fb
 
 
     # TODO: basically extract this into its own FB xmltree - preserve as much info as possible, minus the x and y positioning
@@ -112,7 +135,7 @@ def create_FB_measure(measure: Element) -> Element:
 # since it is 1:1 each FB notation is matched to a bass voice note or a new note is created
 
 # NOTE: assumes bass and continuo have the same notes albeit transposed an octave.
-def combine_bassvoice_and_FB(continuo: Element, bass: Element) -> Element:
+def combine_bassvoice_and_FB(continuo: Element, bass: Element, divisions: int) -> Element:
     bass_attrib = dict(bass.attrib)
 
     FB_measure:Element = etree.Element("measure")
@@ -148,11 +171,15 @@ def combine_bassvoice_and_FB(continuo: Element, bass: Element) -> Element:
             else: 
                 # creates new note using each fb's duration
                 for fb in temp_fb:
-                    fb_bass = create_new_bassnote(fb, bass_child)
+                    fb_bass = create_new_bassnote(fb, bass_child, divisions)
                     FB_measure.append(fb_bass)
+
+            # move onto next bass_child after being processed
+            bass_child = bass_child.getnext()
 
             temp_fb = []
 
+    return FB_measure
 
 
 def append_lyrics_to_bass(fb_bass, lyrics):
@@ -160,23 +187,31 @@ def append_lyrics_to_bass(fb_bass, lyrics):
         fb_bass.append(lyric)
     return fb_bass
 
-def create_new_bassnote(fb: Element, bass_child: Element):
+def create_new_bassnote(fb: Element, bass_child: Element, divisions):
     # fetch duration value from first <lyric> and add to copied <note>
     # then remove it from <lyrics>
-    new_duration = fb.xpath("./duration")[0]
+
+    new_duration = fb[0].xpath("./duration")[0]
     bassnote = deepcopy(bass_child)
     bassnote.xpath("./duration")[0].text = new_duration.text
+
+    # old note / divisions to get "standard value". then multiply by fb duration / old duration to split further between the fb
+    # which cancels out to fb duration / divisions
+    # NOTE: may not handle tuplets very well. also assumes the <divisions> value is the same across bass and continuo.
+    new_note_value = round(int(new_duration.text) / divisions, 2)
+    new_note_type = standardNoteTypeValue.get(new_note_value)
+    if (new_note_type is None):
+        print("Error: no note type found for note value of" + new_note_value + ". Defaulting to crotchets")
+        new_note_type = "quarter"
+    
+    bassnote.xpath("./type")[0].text = new_note_type
 
     fb[0].remove(new_duration)
     fb_bass = append_lyrics_to_bass(bassnote, fb)
     return fb_bass
 
-    
-    # steps:
-    # 1. create new measure
-    # 2. traverse through continuo part
-    # 3. do we need bass? just double continuo notes if there are multiple fbs under it? WE NEED BASS BC IT'S AN OCTAVE UP
-    # 4. also make sure to turn figured bass into lyrics
+
+
 
 # transforms into lyrics xml tag
 # if multiple have to add number attribute
@@ -189,7 +224,7 @@ def turn_FBxml_into_lyrics(FBxml: Element) -> []:
     for i in range (len(figures)):
         figure:Element = figures[i]
         number = i+1
-        lyric = etree.Element("lyric", number=number)
+        lyric = etree.Element("lyric", number =str(number) )
 
         # appends duration to first <lyric> for use in later processing
         if (i == 0 and duration is not None):
