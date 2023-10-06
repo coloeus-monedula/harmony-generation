@@ -25,7 +25,7 @@ def extract_voices(score_path):
 def convert_music21(score_path):
     added_fb_xml = extract_FB(score_path, return_whole_scoretree=True, use_music21_realisation=True)
 
-    # added_fb_xml = etree.parse(score_path)
+    added_fb_xml = etree.parse(score_path)
     path = "./temp/"+score_path.split("/")[-1]
 
     if not os.path.exists("./temp"):
@@ -36,13 +36,27 @@ def convert_music21(score_path):
     file.close()
 
     score = converter.parseFile(path)
-    print(score)
-    score.parts.show()
+    # score.parts.show()
     # print(etree.tostring(added_fb_xml))
+
+    bass_fb = score.parts[-1]
+    fb = figuredBass.realizer.figuredBassFromStream(bass_fb)
+
+    # bass_fb.show()
+
+    fb_rules = figuredBass.rules.Rules()
+    fb_rules.upperPartsMaxSemitoneSeparation = None
+    fb_rules.partMovementLimits = [(1, 2), (2, 12), (3, 12)]
+    realisation = fb.realize()
+
+    realisation.generateRandomRealization().show()
 
 
 def main():
+    # http://www.continuo.ca/files/Figured%20bass%20chart.pdf figured bass cheatsheet
+
     score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
+    # score_path = "chorales/FB_source/musicXML_master/BWV_470_FB.musicxml"
     # fb = extract_FB(score_path)
     # satb = extract_voices(score_path)
     convert_music21(score_path)

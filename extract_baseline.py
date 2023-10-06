@@ -5,14 +5,28 @@ from copy import deepcopy
 
 # modifiers dictionary taken from 
 # https://github.com/cuthbertLab/music21/blob/master/music21/figuredBass/notation.py 
-modifiersDictXmlToM21 = {
+# modifiersDictXmlToM21 = {
+#     'sharp': '#',
+#     'flat': 'b',
+#     'natural': '\u266e',
+#     'double-sharp': '##',
+#     'flat-flat': 'bb',
+#     'backslash': '\\',
+#     'slash': '/',
+#     'cross': '+'
+# }
+
+# modifier information taken from https://web.mit.edu/music21/doc/moduleReference/moduleFiguredBassNotation.html
+# only accepts flats, sharps, naturals, double flats and double sharps
+# NOTE: dataset encodes forward slash = lowered intervals. backslash = raised intervals according to corresponding paper
+XMLToFBModifiers = {
     'sharp': '#',
     'flat': 'b',
-    'natural': '\u266e',
+    'natural': 'n',
     'double-sharp': '##',
     'flat-flat': 'bb',
-    'backslash': '\\',
-    'slash': '/',
+    'backslash': '#',
+    'slash': 'b',
     'cross': '+'
 }
 
@@ -241,20 +255,22 @@ def turn_FBxml_into_lyrics(FBxml: Element) -> []:
 
         fig_string = ""
         # turn prefix and suffix into equivalent m21 notations
+        # NOTE: figured bass assumes suffixed modifiers are a new note - hence put in front instead 
         if prefix is not None:
-            prefix_m21 = modifiersDictXmlToM21.get(prefix)
+            prefix_m21 = XMLToFBModifiers.get(prefix)
             text = prefix_m21 if prefix_m21 is not None else prefix
+
+            fig_string = fig_string + text
+
+        if suffix is not None:
+            suffix_m21 = XMLToFBModifiers.get(suffix)
+            text = suffix_m21 if suffix_m21 is not None else suffix
 
             fig_string = fig_string + text
 
         if fig_num is not None:
             fig_string = fig_string + fig_num
         
-        if suffix is not None:
-            suffix_m21 = modifiersDictXmlToM21.get(suffix)
-            text = suffix_m21 if suffix_m21 is not None else suffix
-
-            fig_string = fig_string + text
 
         fig_string_xml = etree.SubElement(lyric, "text")
         fig_string_xml.text = fig_string
