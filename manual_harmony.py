@@ -61,9 +61,16 @@ def fb_realisation_satb(voices):
     fb = figuredBass.realizer.figuredBassFromStream(bass_fb)
 
     # changing rules
+    # http://www.choraleguide.com/vl-spacing.php ?
     fb_rules = figuredBass.rules.Rules()
+
+    # typically supposed to have this be 12 but this with maxPitch often makes 0 realisations
     fb_rules.upperPartsMaxSemitoneSeparation = None
-    fb_rules.partMovementLimits = [ (1,4), (2, 12), (3, 12)]
+    
+    fb_rules.partMovementLimits = [ (1,5), (2, 14), (3, 14)]
+
+    # more restrictive
+    # fb_rules.partMovementLimits = [ (1,4), (2, 12), (3, 12)]
     fb_rules.applyConsecutivePossibRulesToResolution = True
     fb_rules.applySinglePossibRulesToResolution = True
 
@@ -82,14 +89,18 @@ def fb_realisation_satb(voices):
             m.number = new_num
 
     # find highest pitch in soprano part as we have to generate all satb parts
-    # and hope that alto and tenor don't cross soprano part
-    lowestPitch = sorted(soprano.pitches)[0]
+    # and hope that alto and tenor don't cross soprano part (which in practice alto part does)
+    # lowestPitch = sorted(soprano.pitches)[0]
     highestPitch = sorted(soprano.pitches)[-1]
 
     # have to do 4 parts, else 0 solutions
-    realisation = fb.realize( numParts=4, maxPitch=highestPitch)
+    # NOTE: if no realisations loosen upperMaxSemitone then partMovementLimits, then others 
+    realisation = fb.realize( maxPitch=highestPitch, fbRules=fb_rules)
+ 
     realisation.keyboardStyleOutput = False
 
+    # TODO: have check for if 0 realisations - gradually loosen rules until solution found
+    # TODO: and/or transpose soprano an octave up?
     realised_score = realisation.generateRandomRealization()
     # add voice
     for part in realised_score.parts:
@@ -108,8 +119,9 @@ def fb_realisation_satb(voices):
 def main():
     # http://www.continuo.ca/files/Figured%20bass%20chart.pdf figured bass cheatsheet
 
-    score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
+    score_path = "chorales/FB_source/musicXML_master/BWV_5.07_FB.musicxml"
     # score_path = "chorales/FB_source/musicXML_master/BWV_470_FB.musicxml"
+    # score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
     # fb = extract_FB(score_path)
     # satb = extract_voices(score_path)
     voices = convert_music21(score_path)
