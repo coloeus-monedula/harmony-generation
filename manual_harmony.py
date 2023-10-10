@@ -81,10 +81,13 @@ def fb_realisation_satb(voices):
             new_num = m.number + 1
             m.number = new_num
 
-    
+    # find highest pitch in soprano part as we have to generate all satb parts
+    # and hope that alto and tenor don't cross soprano part
+    lowestPitch = sorted(soprano.pitches)[0]
+    highestPitch = sorted(soprano.pitches)[-1]
 
     # have to do 4 parts, else 0 solutions
-    realisation = fb.realize(numParts=4)
+    realisation = fb.realize( numParts=4, maxPitch=highestPitch)
     realisation.keyboardStyleOutput = False
 
     realised_score = realisation.generateRandomRealization()
@@ -95,13 +98,12 @@ def fb_realisation_satb(voices):
 
 
     realised_soprano = realised_score.parts[0]
-    realised_score.replace(realised_soprano, soprano)
 
-    # print(realised_score.parts[-1].measure(1).paddingLeft)
+    # put at the top
+    realised_score.insert(-1, soprano)
+    realised_score.remove(realised_soprano)
+
     realised_score.show()
-    # TODO: make so it's only "tenor" and "alto" by doing some sort of rule, then splice soprano part together
-    # TODO: make it so that alto and tenor CAN'T BE greater than soprano. 
-    # maxPitch = lowest soprano note
 
 def main():
     # http://www.continuo.ca/files/Figured%20bass%20chart.pdf figured bass cheatsheet
