@@ -2,6 +2,7 @@ import os
 from extract_baseline import extract_FB
 from lxml import etree
 from music21 import *
+import argparse
 
 
 # NOTE: assumes a SATB + continuo part that doubles the bass voice - pieces like BWV_248.64_FB unlikely to work
@@ -56,7 +57,7 @@ def convert_music21(score_path):
 # def fb_realisation_harpsichord():
 
 
-def fb_realisation_satb(voices):
+def fb_realisation_satb(voices, melody, maxpitch, score_parts, rules_args = None):
     bass_fb = voices["fb"]
     fb = figuredBass.realizer.figuredBassFromStream(bass_fb)
 
@@ -116,10 +117,75 @@ def fb_realisation_satb(voices):
 
     realised_score.show()
 
+    # TODO: replace with old bass
+
+
+    # TODO: ARGUMENTS INCLUDE: score file name, score folder(defaults to chorales etc.), which SAT part is considered "melody", 
+    # original parts to insert (other than melod) narg --r for replace , --compare keep og. melody part by default is replaced at the very least
+    # add rules true/false, maxpitch (default highest soprano pitch), all of the rule adjustments only if there isn't a --no-rules flag
+
 def main():
+    parser = argparse.ArgumentParser(description="Realise harmony for a SATB + intrument baseline Bach Chorale using Music21 figured bass harmony rules.")
+    parser.add_argument("file")
+    parser.add_argument("--folder","--f", default="chorales/FB_source/musicXML_master/")
+    parser.add_argument("--melody", "--m", default="s", nargs = 1, choices=["s","a","t"], type=str.lower, help="Which part (Soprano, Alto, Tenor) should be considered melody.")
+    parser.add_argument("--replace","--r", nargs="*", choices=["s","a","t"],  type=str.lower, help = "Which realised parts (Soprano, Alto, Tenor) should be replaced with original parts. The melody line is always replaced, unless --compare is specified. Takes priority over --compare. " )
+    parser.add_argument("--compare","--c", nargs="*",choices=["s","a","t"],  type=str.lower, help="Which realised parts (Soprano, Alto, Tenor) should have their original part on the score as comparison. ")
+    parser.add_argument("--maxpitch", "--mp", default="s", help = "Upper limit on highest pitch realisation will reach.")
+    parser.add_argument("--no-rules","--nr", action= "store_true", help = "If specified, doesn't apply a Rules object to the realisation.")
+
+    rules = parser.add_argument_group("rules")
+    rules.add_argument("--parts-sep", "--ps", default=0, type=int, help = "Maximum amount of semitones apart the upper parts of the realisation (here everything except bass) can be. Default is None (0) ie. no limitations. ")
+    rules.add_argument("--no-consec-rules", "--ncr", action="store_false", help="Doesn't apply consecutive possibility rules to possible realisations. ")
+    rules.add_argument("--no-single-rules", "--nsr", action = "store_false", help = "Doesn't apply single possibility rules to possible realisations. ")
+
+    # wrap in tuple individually
+    rules.add_argument("--part-move-limit", "--part-limit", "--pl", "--pml", nargs=2, action="append", help = "Set maximum amount of semitones a part's pitch can move to for the next note. First number is partNumber from highest part (soprano) to lowest (bass), second number is maximum semitone separation. Not specifying sets limits to [ (1,5), (2, 14), (3, 14)].", type=int)
+
+
+    args = parser.parse_args()
     # http://www.continuo.ca/files/Figured%20bass%20chart.pdf figured bass cheatsheet
 
-    score_path = "chorales/FB_source/musicXML_master/BWV_5.07_FB.musicxml"
+    score_path = args.folder + args.file
+
+    rules_args = None
+    # adds rules to a dict
+    if (args["no-rules"] == False):
+        rules_args = {}
+
+        if args["parts-sep"] == 0:
+            rules_args.separation = None
+        else:
+            rules_args.separation = args["parts-sep"]
+
+        rules_args.consecutive = args["ncr"]
+        rules_args.single = args["nsr"]
+
+        if args["part-limit"] is None:
+            rules_args.move_lim = [(1,5), (2, 14), (3, 14)]
+        else:
+            move_lim = []
+            for pair in args["part-limit"]:
+                move_lim.append(tuple(pair))
+            
+            rules_args.move_lim = move_lim
+
+    # TODO: check if melody line is in compare. if so, add to compare. if not, add to replace
+    # then just add as is
+
+    score_parts = {
+        "replace" : [],
+        "compare" : []
+    }
+    melody = args.melody
+    if (melody not in args["compare"]):
+        score_parts["replace"].append(melody)
+    
+    score_parts["replace"].extend(args["replace"])
+    score_parts["compare"].extend(args["compare"])
+
+            
+
     # score_path = "chorales/FB_source/musicXML_master/BWV_470_FB.musicxml"
     # score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
     # fb = extract_FB(score_path)
