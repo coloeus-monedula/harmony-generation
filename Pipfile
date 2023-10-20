@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 music21 = "*"
 lxml = "*"
+muspy = "*"
 
 [dev-packages]
 

@@ -152,11 +152,12 @@ def main():
     parser = argparse.ArgumentParser(description="Realise harmony for a SATB + intrument baseline Bach Chorale using Music21 figured bass harmony rules.")
     parser.add_argument("file")
     parser.add_argument("--folder","--f", default="chorales/FB_source/musicXML_master/")
-    parser.add_argument("--melody", "--m", default="s", nargs = 1, choices=["s","a","t"], type=str.lower, help="Which part (Soprano, Alto, Tenor) should be considered melody.")
+    parser.add_argument("--melody", "--m", default="s", nargs = 1, choices=["s","a","t"], type=str.lower, help="Which part (Soprano, Alto, Tenor) should be considered melody. Default is Soprano.")
     parser.add_argument("--replace","--r", nargs="*", choices=["s","a","t"],  type=str.lower, help = "Which realised parts (Soprano, Alto, Tenor) should be replaced with original parts. The melody line is always replaced, unless --compare is specified. Takes priority over --compare. " )
     parser.add_argument("--compare","--c", nargs="*",choices=["s","a","t"],  type=str.lower, help="Which realised parts (Soprano, Alto, Tenor) should have their original part on the score as comparison. ")
     parser.add_argument("--maxpitch", "--mp", default="s", help = "Upper limit on highest pitch realisation will reach.")
     parser.add_argument("--no-rules","--nr", action= "store_true", help = "If specified, doesn't apply a Rules object to the realisation.")
+    parser.add_argument("--keep-realised-melody", "--krm", action="store_true", help="If specified, doesn't replace the melody line with the original melody line.")
 
     rules = parser.add_argument_group("rules")
     rules.add_argument("--parts-sep", "--ps", default=0, type=int, help = "Maximum amount of semitones apart the upper parts of the realisation (here everything except bass) can be. Default is None (0) ie. no limitations. ")
@@ -205,7 +206,7 @@ def main():
     }
     melody = args.melody
 
-    if ((args.compare is None or melody not in args.compare) and (args.replace is None or melody not in args.replace)):
+    if ((args.compare is None or melody not in args.compare) and (args.replace is None or melody not in args.replace) and args.keep_realised_melody == False):
         score_parts["remove"].extend(melody)
         score_parts["add"].extend(melody)
 
