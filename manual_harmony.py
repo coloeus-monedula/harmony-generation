@@ -39,6 +39,18 @@ def convert_music21(score_path):
     score = converter.parseFile(path)
     parts = score.parts
 
+    # add part names
+    parts[0].partName = "Soprano"
+    parts[1].partName = "Alto"
+    parts[2].partName = "Tenor"
+    parts[3].partName = "Bass"
+    parts[-1].partName = "Figured Bass"
+
+    parts[0].partAbbreviation = "S"
+    parts[1].partAbbreviation = "A"
+    parts[2].partAbbreviation = "T"
+    parts[3].partAbbreviation = "B"
+    parts[-1].partAbbreviation = "FB"
 
     voices = {
         "s": parts[0],
@@ -48,7 +60,6 @@ def convert_music21(score_path):
         "fb": parts[-1]
     }
 
-    # voices["s"].show()
     return voices
 
 
@@ -57,7 +68,7 @@ def convert_music21(score_path):
 # def fb_realisation_harpsichord():
 
 
-def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None):
+def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_realisation = False):
     bass_fb = voices["fb"]
     voices.pop("fb")
     fb = figuredBass.realizer.figuredBassFromStream(bass_fb)
@@ -101,9 +112,23 @@ def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None):
     realisation.keyboardStyleOutput = False
     realised_score = realisation.generateRandomRealization()
 
+    parts = realised_score.parts
     # add voice tag
     for part in realised_score.parts:
         part.insert(0, instrument.Choir())
+
+
+    # change part names
+    parts[0].partName = "Soprano R."
+    parts[1].partName = "Alto R."
+    parts[2].partName = "Tenor R."
+    # bass will be unchanged from OG since the FB realisations are based off it
+    parts[3].partName = "Bass"
+    
+    parts[0].partAbbreviation = "S R."
+    parts[1].partAbbreviation = "A R."
+    parts[2].partAbbreviation = "T R."
+    parts[3].partAbbreviation = "B"
 
     # adding OG part and potentially removing realised part
     to_replace = []
@@ -126,7 +151,10 @@ def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None):
     for to_remove in to_replace:
         realised_score.remove(to_remove)
 
-    realised_score.show()
+    if show_realisation:
+        realised_score.show()
+    
+    return realised_score
 
 def handle_anacrusis(part):
     incomplete_bar = part.measure(0)
@@ -141,12 +169,13 @@ def handle_anacrusis(part):
             new_num = m.number + 1
             m.number = new_num
 
-    # TODO: replace with old bass
 
 
     # TODO: ARGUMENTS INCLUDE: score file name, score folder(defaults to chorales etc.), which SAT part is considered "melody", 
     # original parts to insert (other than melod) narg --r for replace , --compare keep og. melody part by default is replaced at the very least
     # add rules true/false, maxpitch (default highest soprano pitch), all of the rule adjustments only if there isn't a --no-rules flag
+
+
 
 def main():
     parser = argparse.ArgumentParser(description="Realise harmony for a SATB + intrument baseline Bach Chorale using Music21 figured bass harmony rules.")
@@ -158,7 +187,7 @@ def main():
     parser.add_argument("--maxpitch", "--mp", default="s", help = "Upper limit on highest pitch realisation will reach.")
     parser.add_argument("--no-rules","--nr", action= "store_true", help = "If specified, doesn't apply a Rules object to the realisation.")
     parser.add_argument("--keep-realised-melody", "--krm", action="store_true", help="If specified, doesn't replace the melody line with the original melody line.")
-
+    parser.add_argument("--show", action = "store_true", help="Show realisation in score viewer.")
     rules = parser.add_argument_group("rules")
     rules.add_argument("--parts-sep", "--ps", default=0, type=int, help = "Maximum amount of semitones apart the upper parts of the realisation (here everything except bass) can be. Default is None (0) ie. no limitations. ")
     rules.add_argument("--no-consec-rules", "--ncr", action="store_false", help="Doesn't apply consecutive possibility rules to possible realisations. ")
@@ -195,9 +224,6 @@ def main():
             
             rules_args["move_lim"] = move_lim
 
-    # TODO: check if melody line is in compare. if so, add to compare. if not, add to replace
-    # then just add as is
-
 
     # transcribing which realised parts get replaced, which get an additional OG part and which stay the same
     score_parts = {
@@ -229,9 +255,8 @@ def main():
     # score_path = "chorales/FB_source/musicXML_master/BWV_470_FB.musicxml"
     # score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
     # fb = extract_FB(score_path)
-    # satb = extract_voices(score_path)
     voices = convert_music21(score_path)
-    fb_realisation_satb(voices,  args.maxpitch, score_parts, rules_args)
+    fb_realisation_satb(voices,  args.maxpitch, score_parts, rules_args, args.show)
     
     # print(satb.get("s").show("text"))
     # print(etree.tostring(fb, encoding="unicode", pretty_print=True))
