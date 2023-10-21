@@ -1,5 +1,13 @@
+from music21.figuredBass import possibility
 
+chord_costs = {
 
+}
+
+# TODO: thresholding to see what is determined as "smooth connection"?
+transition_costs = {
+
+}
 
 # returns a new dict with the same keys, but has the part pitches as values instead 
 # TODO: pitches should be like midi numbers
@@ -19,7 +27,14 @@ def get_pitches_music21(parts: dict, format):
     return pitches
 
 # TODO: rules eval - use the figuredBass.possibility object to check manually
+# negative rules increase cost bc less likely
 def rules_based_eval():
+
+# chord placement rules
+def eval_chord():
+
+# transition rules
+def eval_transitions():
 
 
 # TODO: decide whether the melody line also needs to be evaluated, or just the realised harmonies?
