@@ -66,6 +66,7 @@ def get_pitches_music21_chords(chords: list, format) -> list:
 
 def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_adjust = 1):
     harmony_costs = []
+    total_costs = 0
 
     # "If a Score or Part of Measures is provided, a Stream of Measures will be returned"
     chords = score.chordify(addPartIdAsGroup = True)
@@ -88,6 +89,7 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_
         transition_cost = trans_adjust * eval_transitions(first, second, trans_checks)
 
         total = local_cost+transition_cost
+        total_costs += total
         harmony_costs.append(total)
 
     
@@ -96,9 +98,14 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_
     second = chords[size - 1]
     local_cost = eval_chord(first, chord_checks, local_adjust) + eval_chord(second, chord_checks, local_adjust)
     transition_cost = eval_transitions(first, second, trans_checks)
+    total = local_cost + transition_cost
+    total_costs+= total
+    harmony_costs.append(total)
 
-    # at the very end sum everything up
-    # return dict of  
+    return {
+        "total": total_costs,
+        "chord_costs": harmony_costs 
+    }
 
 
 # chord placement rules
