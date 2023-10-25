@@ -1,17 +1,34 @@
 from music21.figuredBass import possibility
 from music21 import chord
 from music21 import *
+import pickle
 
 
 # to differentiate close vs open harmony
 max_semitone_separation = 12
+
+
+# uses https://musictheory.pugetsound.edu/mt21c/VoiceRanges.html as reference and is Bach chorales-specific
+# vocal_ranges = {
+#     "s": ("D4", "F#5"),
+#     "a": ("G3", "C#5"),
+#     "t": ("E-3", "F#4"),
+#     "b": ("E2", "C4")
+# }
+vocal_ranges = {
+    "s": (293, 740),
+    "a": (195, 555),
+    "t": (155, 370),
+    "b": (82, 262)
+}
 
 # chord location costs
 chord_costs = {
     # assume to fall under "smooth connection of each part" metric
     "close": -4,
     "doubled_leading": 1,
-    "not_in_range": 4 
+    # checks for each voice, up to 4 per chord in total
+    "not_in_range": 1 
 }
 
 # TODO: thresholding to see what is determined as "smooth connection"?
@@ -109,8 +126,33 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_
 
 
 # chord placement rules
+# we are ignoring the figure interpretation metrics for now as it's a lot of work
 def eval_chord(chord, checks: dict(str, bool), adjust_factor):
+    cost = 0
+    if (checks["close"] and possibility.upperPartsWithinLimit(chord, max_semitone_separation)):
+        cost += chord_costs["close"]
     
+    if (checks["range"]):
+        (s, a, t, b) = chord
+        s = s.frequency
+        a = a.frequency
+        t = t.frequency
+        b = b.frequency
+
+        # check to see if notes fall out of vocal ranges
+        if ( s < vocal_ranges["s"][0] or s > vocal_ranges["s"][1]):
+            cost +=chord_costs["not_in_range"]
+        if ( a < vocal_ranges["a"][0] or s > vocal_ranges["a"][1]):
+            cost +=chord_costs["not_in_range"]
+        if ( t < vocal_ranges["t"][0] or s > vocal_ranges["t"][1]):
+            cost +=chord_costs["not_in_range"]
+        if ( b < vocal_ranges["b"][0] or s > vocal_ranges["b"][1]):
+            cost +=chord_costs["not_in_range"]
+
+
+    # TODO: do check if doubled leading note ? - do they mean the 7th or just the semitoneness? 
+    return cost*adjust_factor
+
 
 
 # transition rules
@@ -133,6 +175,14 @@ def eval_transitions(first, second, checks: dict(str, bool)):
 
 def main():
     print("hi")
+
+    # NOTE: original also has the FB line
+
+
+    # for now, using pickled objs
+
+
+    # potenital arguments: maxsemitonelimnit
     #TODO: get stuff from manual_harmony
     # subprocess?
 

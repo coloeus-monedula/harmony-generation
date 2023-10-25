@@ -250,16 +250,18 @@ def manual_parser():
     sort_order = {"s":0, "a":1, "t":2}
     score_parts["add"].sort(key=lambda x: sort_order.get(x))
 
-    print(score_parts)
 
     # score_path = "chorales/FB_source/musicXML_master/BWV_470_FB.musicxml"
     # score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
     # fb = extract_FB(score_path)
     voices = convert_music21(score_path)
     realised = fb_realisation_satb(voices,  args.maxpitch, score_parts, rules_args, args.show)
-    
 
-    return realised
+    
+    return {
+        "realised" : realised, 
+        "original" : voices
+    }
     # print(satb.get("s").show("text"))
     # print(etree.tostring(fb, encoding="unicode", pretty_print=True))
 
