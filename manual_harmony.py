@@ -177,7 +177,7 @@ def handle_anacrusis(part):
 
 
 
-def main():
+def manual_parser():
     parser = argparse.ArgumentParser(description="Realise harmony for a SATB + intrument baseline Bach Chorale using Music21 figured bass harmony rules.")
     parser.add_argument("file")
     parser.add_argument("--folder","--f", default="chorales/FB_source/musicXML_master/")
@@ -256,12 +256,14 @@ def main():
     # score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
     # fb = extract_FB(score_path)
     voices = convert_music21(score_path)
-    fb_realisation_satb(voices,  args.maxpitch, score_parts, rules_args, args.show)
+    realised = fb_realisation_satb(voices,  args.maxpitch, score_parts, rules_args, args.show)
     
+
+    return realised
     # print(satb.get("s").show("text"))
     # print(etree.tostring(fb, encoding="unicode", pretty_print=True))
 
     # added_fb_xml = extract_FB(score_path, return_whole_scoretree=True, use_music21_realisation=True)
 
 if __name__ == "__main__":
-    main()
+    manual_parser()
