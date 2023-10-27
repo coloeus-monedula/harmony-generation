@@ -32,9 +32,8 @@ chord_costs = {
 }
 
 # TODO: thresholding to see what is determined as "smooth connection"?
-# parallel fifth is successive fifth, hidden _ is a subcategory of successive _s
+# parallel fifth is successive fifth, hidden _ is a subcategory of successive _s hence the 3 weighting
 transition_costs = {
-    "parallel_8th": 5,
     "parallel_8th": 5,
     "parallel_5th": 3,
     "hidden_5th": 3,
@@ -82,8 +81,11 @@ def get_pitches_music21_chords(chords: list, format) -> list:
 # http://web.mit.edu/music21/doc/usersGuide/usersGuide_09_chordify.html chordify
 
 def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_adjust = 1):
-    harmony_costs = []
     total_costs = 0
+    local_list = []
+    trans_list = []
+    local_total = 0
+    trans_total = 0
 
     # "If a Score or Part of Measures is provided, a Stream of Measures will be returned"
     chords = score.chordify(addPartIdAsGroup = True)
@@ -105,9 +107,13 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_
         local_cost = eval_chord(first, chord_checks, local_adjust)
         transition_cost = trans_adjust * eval_transitions(first, second, trans_checks)
 
+        local_total+=local_cost
+        trans_total += transition_cost
+
         total = local_cost+transition_cost
         total_costs += total
-        harmony_costs.append(total)
+        local_list.append(local_cost)
+        trans_list.append(transition_cost)
 
     
     # n - 1 chord
@@ -116,12 +122,18 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_
     local_cost = eval_chord(first, chord_checks, local_adjust) + eval_chord(second, chord_checks, local_adjust)
     transition_cost = eval_transitions(first, second, trans_checks)
     total = local_cost + transition_cost
+
+    local_total+=local_cost
+    trans_total+=transition_cost
+
     total_costs+= total
-    harmony_costs.append(total)
+    local_list.append(local_cost)
+    trans_list.append(transition_cost)
 
     return {
         "total": total_costs,
-        "chord_costs": harmony_costs 
+        "local": local_list,
+        "transition": trans_list 
     }
 
 
@@ -157,19 +169,33 @@ def eval_chord(chord, checks: dict(str, bool), adjust_factor):
 
 # transition rules
 def eval_transitions(first, second, checks: dict(str, bool)):
+    cost = 0
+    if (checks["hidden_5th"] and possibility.hiddenFifth(first, second)):
+        cost+=transition_costs["hidden_5th"]
+    
+    if (checks["hidden_8th"] and possibility.hiddenOctave(first, second)):
+        cost+=transition_costs["hidden_8th"]
+    
+    if (checks["parallel_5th"] and possibility.parallelFifths(first, second)):
+        cost += transition_costs["parallel_5th"]
+    
+    if (checks["parallel_8th"] and possibility.parallelOctaves(first, second)):
+        cost += transition_costs["parallel_8th"]
 
+    
+    return cost
 
 
 
 
 # TODO: decide whether the melody line also needs to be evaluated, or just the realised harmonies?
-# TODO: add some sort of tag to music21 object so i know which part is which
 
 # TODO: how to compare to og if realised part has extracted notes due to figured bass?
-# a note by note comparison???
 
-# def similarity_eval():
-
+def similarity_eval(realised, original, melody):
+# TODO: how to compare progressions?? 
+# https://web.mit.edu/music21/doc/usersGuide/usersGuide_09_chordify.html#using-chordify-to-annotate-intervals or the roman numeral method
+# TODO: determine "leeway" - two ways of doing it - via roman numerals and via intervals?
 
 
 
