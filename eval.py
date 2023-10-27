@@ -1,6 +1,8 @@
 from music21.figuredBass import possibility
 from music21 import chord
 from music21 import *
+from nltk import ngrams, FreqDist
+from nltk.metrics.distance import jaro_similarity
 import pickle
 
 
@@ -187,15 +189,75 @@ def eval_transitions(first, second, checks: dict(str, bool)):
 
 
 
+def similarity_eval(realised, original, ngrams_n = 2, show = False):
+    realised_progressions = get_chord_progressions(realised)
+    original_progressions = get_chord_progressions(original)
 
-# TODO: decide whether the melody line also needs to be evaluated, or just the realised harmonies?
+    # since we added the lyrics ourselves, we know that lyric number won't go past 1
+    r_progression_text = get_text_progressions(realised_progressions.lyrics()[1], has_measures=False)
+    og_progression_text = get_text_progressions(original_progressions.lyrics()[1], has_measures=False)
 
-# TODO: how to compare to og if realised part has extracted notes due to figured bass?
+    ngrams_r = ngrams(r_progression_text, ngrams_n)
+    ngrams_og = ngrams(og_progression_text, ngrams_n)
 
-def similarity_eval(realised, original, melody):
-# TODO: how to compare progressions?? 
-# https://web.mit.edu/music21/doc/usersGuide/usersGuide_09_chordify.html#using-chordify-to-annotate-intervals or the roman numeral method
-# TODO: determine "leeway" - two ways of doing it - via roman numerals and via intervals?
+    realised_freqdist = FreqDist(ngrams_r)
+    original_freqdist = FreqDist(ngrams_og)
+
+    # basically jaccard similarity except impacted by duplicates
+    intersection = [ngram for ngram in ngrams_r if ngram in ngrams_og]
+    union = ngrams_r + ngrams_n
+    jaccard = intersection / union
+
+    # jaro similarity to take into account position of the ngram since music has a temporal element
+    jaro = jaro_similarity(ngrams_r, ngrams_og)
+
+    if (show):
+        realised_freqdist.plot()
+        original_freqdist.plot()
+
+    return {
+        "freqdist_r" : realised_freqdist,
+        "freqdist_og": original_freqdist,
+        "jaccard": jaccard ,
+        "jaro": jaro
+
+    }
+
+    # TODO: frequency analysis per bar
+    # frequency analysis as a whole - get a proportion/percentage of how much of realised matches original?
+    # if show = true shows frequency pplot
+
+
+# returns a stream of Measures with roman numerals of the chord annotated as lyrics  
+def get_chord_progressions(score):
+    # get key sig
+    analysed_key = score.analyze('key')
+    # print(analysed_key.correlationCoefficient)
+
+    chords = score.chordify()
+
+    for c in chords.recurse().getElementsByClass(chord.Chord):
+        roman_num = roman.romanNumeralFromChord(c, analysed_key)
+
+        # NOTE: maybe switch to .romanNumeral if .figure is too complex
+        c.addLyric(roman_num.figure)
+
+
+def get_text_progressions(lyrics, has_measures):
+    # if has_measures is true, structure of lyrics will be different
+    # will return nested loop
+    # TODO: convert to text list of progressions -> run nltk on it
+    text_lyrics = []
+
+    if (has_measures == False):
+        for l in lyrics:
+            text_lyrics.append(l.text)
+
+    else:
+        # for each loop create equivalent loop of just text equiv
+        print("placeholder")
+
+    return text_lyrics
 
 
 
