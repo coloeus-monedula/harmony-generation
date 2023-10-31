@@ -20,7 +20,6 @@ max_semitone_separation = 12
 # }
 
 
-
 vocal_ranges = {
     "s": (293, 740),
     "a": (195, 555),
@@ -163,11 +162,11 @@ def eval_chord(chord, checks: dict, adjust_factor):
         # check to see if notes fall out of vocal ranges
         if ( s < vocal_ranges["s"][0] or s > vocal_ranges["s"][1]):
             cost +=chord_costs["not_in_range"]
-        if ( a < vocal_ranges["a"][0] or s > vocal_ranges["a"][1]):
+        if ( a < vocal_ranges["a"][0] or a > vocal_ranges["a"][1]):
             cost +=chord_costs["not_in_range"]
-        if ( t < vocal_ranges["t"][0] or s > vocal_ranges["t"][1]):
+        if ( t < vocal_ranges["t"][0] or t > vocal_ranges["t"][1]):
             cost +=chord_costs["not_in_range"]
-        if ( b < vocal_ranges["b"][0] or s > vocal_ranges["b"][1]):
+        if ( b < vocal_ranges["b"][0] or b > vocal_ranges["b"][1]):
             cost +=chord_costs["not_in_range"]
 
 
@@ -270,7 +269,7 @@ def get_text_progressions(lyrics, has_measures):
 
 
 
-def main():
+def main(standalone = False):
     with open("temp/score_objs", "rb") as f:
         scores = pickle.load(f)
 
@@ -318,4 +317,4 @@ def main():
     pp.pprint(similarity_results)
 
 if __name__ == "__main__":
-    main()
+    main(standalone=True)
