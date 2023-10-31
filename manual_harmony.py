@@ -258,6 +258,7 @@ def manual_parser():
     realised = fb_realisation_satb(voices,  args.maxpitch, score_parts, rules_args, args.show)
 
     
+    # NOTE: currently, original is SATB only since the FB part is popped off in the realisation stage.
     return {
         "realised" : realised, 
         "original" : voices

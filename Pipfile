@@ -9,6 +9,7 @@ lxml = "*"
 muspy = "*"
 nltk = "*"
 matplotlib = "*"
+dill = "*"
 
 [dev-packages]
 

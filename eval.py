@@ -3,7 +3,8 @@ from music21 import chord
 from music21 import *
 from nltk import ngrams, FreqDist
 from nltk.metrics.distance import jaro_similarity
-import pickle
+import dill as pickle
+import pprint 
 
 
 # to differentiate close vs open harmony
@@ -17,6 +18,9 @@ max_semitone_separation = 12
 #     "t": ("E-3", "F#4"),
 #     "b": ("E2", "C4")
 # }
+
+
+
 vocal_ranges = {
     "s": (293, 740),
     "a": (195, 555),
@@ -82,7 +86,7 @@ def get_pitches_music21_chords(chords: list, format) -> list:
 
 # http://web.mit.edu/music21/doc/usersGuide/usersGuide_09_chordify.html chordify
 
-def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_adjust = 1):
+def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 1, trans_adjust = 1):
     total_costs = 0
     local_list = []
     trans_list = []
@@ -90,7 +94,9 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_
     trans_total = 0
 
     # "If a Score or Part of Measures is provided, a Stream of Measures will be returned"
-    chords = score.chordify(addPartIdAsGroup = True)
+    # remove redundant false to account for the fact sometimes voices sing the same notes
+    chords = score.chordify(addPartIdAsGroup = True, removeRedundantPitches = False)
+    # chords.show("text")
 
     # TODO: convert to chordify
     # iterate through, convert to pitch (store in Score format)? use Chord.pitches
@@ -103,8 +109,8 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_
 
     # everything up to and excluding the n-1 chord
     for i in range(0, size - 1):
-        first = chords[i]
-        second = chords[i+1]
+        first = pitches[i]
+        second = pitches[i+1]
 
         local_cost = eval_chord(first, chord_checks, local_adjust)
         transition_cost = trans_adjust * eval_transitions(first, second, trans_checks)
@@ -119,8 +125,8 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_
 
     
     # n - 1 chord
-    first = chords[size - 2]
-    second = chords[size - 1]
+    first = pitches[size - 2]
+    second = pitches[size - 1]
     local_cost = eval_chord(first, chord_checks, local_adjust) + eval_chord(second, chord_checks, local_adjust)
     transition_cost = eval_transitions(first, second, trans_checks)
     total = local_cost + transition_cost
@@ -141,7 +147,8 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 5, trans_
 
 # chord placement rules
 # we are ignoring the figure interpretation metrics for now as it's a lot of work
-def eval_chord(chord, checks: dict(str, bool), adjust_factor):
+def eval_chord(chord, checks: dict, adjust_factor):
+
     cost = 0
     if (checks["close"] and possibility.upperPartsWithinLimit(chord, max_semitone_separation)):
         cost += chord_costs["close"]
@@ -170,7 +177,7 @@ def eval_chord(chord, checks: dict(str, bool), adjust_factor):
 
 
 # transition rules
-def eval_transitions(first, second, checks: dict(str, bool)):
+def eval_transitions(first, second, checks: dict):
     cost = 0
     if (checks["hidden_5th"] and possibility.hiddenFifth(first, second)):
         cost+=transition_costs["hidden_5th"]
@@ -197,16 +204,16 @@ def similarity_eval(realised, original, ngrams_n = 2, show = False):
     r_progression_text = get_text_progressions(realised_progressions.lyrics()[1], has_measures=False)
     og_progression_text = get_text_progressions(original_progressions.lyrics()[1], has_measures=False)
 
-    ngrams_r = ngrams(r_progression_text, ngrams_n)
-    ngrams_og = ngrams(og_progression_text, ngrams_n)
+    ngrams_r = list(ngrams(r_progression_text, ngrams_n))
+    ngrams_og = list(ngrams(og_progression_text, ngrams_n))
 
     realised_freqdist = FreqDist(ngrams_r)
     original_freqdist = FreqDist(ngrams_og)
 
     # basically jaccard similarity except impacted by duplicates
     intersection = [ngram for ngram in ngrams_r if ngram in ngrams_og]
-    union = ngrams_r + ngrams_n
-    jaccard = intersection / union
+    union = ngrams_r + ngrams_og
+    jaccard = len(intersection) / len(union)
 
     # jaro similarity to take into account position of the ngram since music has a temporal element
     jaro = jaro_similarity(ngrams_r, ngrams_og)
@@ -218,8 +225,8 @@ def similarity_eval(realised, original, ngrams_n = 2, show = False):
     return {
         "freqdist_r" : realised_freqdist,
         "freqdist_og": original_freqdist,
-        "jaccard": jaccard ,
-        "jaro": jaro
+        "jaccard": round(jaccard, 4) ,
+        "jaro": round(jaro, 4)
 
     }
 
@@ -239,8 +246,10 @@ def get_chord_progressions(score):
     for c in chords.recurse().getElementsByClass(chord.Chord):
         roman_num = roman.romanNumeralFromChord(c, analysed_key)
 
-        # NOTE: maybe switch to .romanNumeral if .figure is too complex
-        c.addLyric(roman_num.figure)
+        # NOTE: switched to .romanNumeral since .figure gives too detailed chords numberings for similarity evals
+        c.addLyric(roman_num.romanNumeral)
+
+    return chords
 
 
 def get_text_progressions(lyrics, has_measures):
@@ -262,30 +271,51 @@ def get_text_progressions(lyrics, has_measures):
 
 
 def main():
-    print("hi")
+    with open("temp/score_objs", "rb") as f:
+        scores = pickle.load(f)
 
-    # NOTE: original also has the FB line
+    realised = scores["realised"]
+
+    # reconstructing original score
+    original = stream.Score()
+    parts = list(scores["original"].values())
+    for p in parts:
+        original.insert(p)
+    
+
+    # False by default, turn on by params
+    chord_checks = {
+        "close": False,
+        "range": False
+    }
+
+    transition_checks = {
+        "hidden_5th": False,
+        "hidden_8th": False,
+        "parallel_5th": False,
+        "parallel_8th": False
+    }
+
+    
+
+    chord_checks["close"] = True
+    chord_checks["range"] = True
+    transition_checks["hidden_5th"]= True
+    transition_checks["hidden_8th"] = True
+    transition_checks["parallel_5th"] = True
+    transition_checks["parallel_8th"] = True
+
+    global max_semitone_separation
+    max_semitone_separation = 12
 
 
-    # for now, using pickled objs
+    rules_results = rules_based_eval(realised, chord_checks, transition_checks)
 
+    print(rules_results)
 
-    # potenital arguments: maxsemitonelimnit
-    #TODO: get stuff from manual_harmony
-    # subprocess?
-
-    #  "proper_range": bool,
-    # "dbl_leading_note": bool,
-    # "close_position": bool,
-    # "unprepared_7th": bool,
-    # "unprepared_9th": bool
-
-
-    #     "hidden_8th": bool,
-    # "hidden_unison": bool,
-    # "parallel_5th": bool,
-    # "parallel_8th": bool,
-    # "parallel_2nd": bool,
+    similarity_results = similarity_eval(realised, original)
+    pp = pprint.PrettyPrinter()
+    pp.pprint(similarity_results)
 
 if __name__ == "__main__":
     main()
