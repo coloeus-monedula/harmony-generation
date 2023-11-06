@@ -280,7 +280,7 @@ def main(standalone = False, chord_checks = {
     "hidden_8th": False,
     "parallel_5th": False,
     "parallel_8th": False
-}, max_semitone = 12):
+}, max_semitone = 12, scores = None):
 
     global max_semitone_separation
     # ie. chord and transition checks aren't passed in via another python program and is via argparse
@@ -330,23 +330,31 @@ def main(standalone = False, chord_checks = {
         max_semitone_separation = args.max_semitone
 
     else:
-        max_semitone_separation = args.max_semitone
+        max_semitone_separation = max_semitone
 
 
     realised = scores["realised"]
 
     # reconstructing original score
+    # have to do this for both
     original = stream.Score()
     parts = list(scores["original"].values())
     for p in parts:
         original.insert(p)
+
+
     rules_results = rules_based_eval(realised, chord_checks, transition_checks)
 
-    print(rules_results)
+    # print(rules_results)
 
     similarity_results = similarity_eval(realised, original)
     pp = pprint.PrettyPrinter()
-    pp.pprint(similarity_results)
+    # pp.pprint(similarity_results)
+
+    return {
+        "rules": rules_results,
+        "similarity": similarity_results
+    }
 
 if __name__ == "__main__":
     main(standalone=True)
