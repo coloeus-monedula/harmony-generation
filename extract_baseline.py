@@ -76,6 +76,7 @@ def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretr
 
         part_list = root.xpath("./part-list")[0]
         part_list.append(fb_scorepart)
+        # print(etree.tostring(fb_scorepart, encoding="unicode", pretty_print=True))
 
     else:
         for measure in continuo.iter("measure"):
@@ -291,8 +292,8 @@ def turn_FBxml_into_lyrics(FBxml: Element) -> []:
 
 
 def main():
-    score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
-    fb = extract_FB(score_path)
+    score_path = "chorales/FB_source/musicXML_master/BWV_5.07_FB.musicxml"
+    fb = extract_FB(score_path, use_music21_realisation = True)
     print(etree.tostring(fb, encoding="unicode", pretty_print=True))
 
 if __name__ == "__main__":

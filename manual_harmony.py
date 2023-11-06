@@ -25,10 +25,9 @@ def extract_voices(score_path):
 
     return voices
 
-def convert_music21(score_path):
+def convert_music21(score_path, return_as_score = False):
     added_fb_xml = extract_FB(score_path, return_whole_scoretree=True, use_music21_realisation=True)
 
-    added_fb_xml = etree.parse(score_path)
     path = "./temp/"+score_path.split("/")[-1]
 
     if not os.path.exists("./temp"):
@@ -39,6 +38,7 @@ def convert_music21(score_path):
     file.close()
 
     score = converter.parseFile(path)
+    # score.show()
     parts = score.parts
 
     # add part names
@@ -54,15 +54,18 @@ def convert_music21(score_path):
     parts[3].partAbbreviation = "B"
     parts[-1].partAbbreviation = "FB"
 
-    voices = {
-        "s": parts[0],
-        "a": parts[1],
-        "t": parts[2],
-        "b": parts[3],
-        "fb": parts[-1]
-    }
+    if return_as_score:
+        return score
+    else:
+        voices = {
+            "s": parts[0],
+            "a": parts[1],
+            "t": parts[2],
+            "b": parts[3],
+            "fb": parts[-1]
+        }
 
-    return voices
+        return voices
 
 
 
@@ -259,6 +262,7 @@ def manual_parser():
     # score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
     # fb = extract_FB(score_path)
     voices = convert_music21(score_path)
+    print(voices)
     realised = fb_realisation_satb(voices,  args.maxpitch, score_parts, rules_args, args.show)
 
     score_objs = {
