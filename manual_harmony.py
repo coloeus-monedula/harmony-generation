@@ -3,6 +3,8 @@ from extract_baseline import extract_FB
 from lxml import etree
 from music21 import *
 import argparse
+import dill as pickle
+
 
 
 # NOTE: assumes a SATB + continuo part that doubles the bass voice - pieces like BWV_248.64_FB unlikely to work
@@ -188,6 +190,8 @@ def manual_parser():
     parser.add_argument("--no-rules","--nr", action= "store_true", help = "If specified, doesn't apply a Rules object to the realisation.")
     parser.add_argument("--keep-realised-melody", "--krm", action="store_true", help="If specified, doesn't replace the melody line with the original melody line.")
     parser.add_argument("--show", action = "store_true", help="Show realisation in score viewer.")
+    parser.add_argument("--save", nargs = "?", const="temp/score_objs", help="Whether to save both the realised and original scores. Note that the original score currently won't include the continuo with FB markings ie. it is just SATB. Defaults to temp/score_objs.")
+
     rules = parser.add_argument_group("rules")
     rules.add_argument("--parts-sep", "--ps", default=0, type=int, help = "Maximum amount of semitones apart the upper parts of the realisation (here everything except bass) can be. Default is None (0) ie. no limitations. ")
     rules.add_argument("--no-consec-rules", "--ncr", action="store_false", help="Doesn't apply consecutive possibility rules to possible realisations. ")
@@ -257,12 +261,18 @@ def manual_parser():
     voices = convert_music21(score_path)
     realised = fb_realisation_satb(voices,  args.maxpitch, score_parts, rules_args, args.show)
 
-    
-    # NOTE: currently, original is SATB only since the FB part is popped off in the realisation stage.
-    return {
+    score_objs = {
         "realised" : realised, 
         "original" : voices
     }
+    # NOTE: currently, original is SATB only since the FB part is popped off in the realisation stage.
+
+    if args.save is not None:
+        with open(args.save, "wb") as f:
+            pickle.dump(score_objs, f)
+    
+
+    return score_objs
     # print(satb.get("s").show("text"))
     # print(etree.tostring(fb, encoding="unicode", pretty_print=True))
 

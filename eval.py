@@ -1,3 +1,4 @@
+import argparse
 from music21.figuredBass import possibility
 from music21 import chord
 from music21 import *
@@ -263,15 +264,74 @@ def get_text_progressions(lyrics, has_measures):
 
     else:
         # for each loop create equivalent loop of just text equiv
+        # TODO
         print("placeholder")
 
     return text_lyrics
 
 
 
-def main(standalone = False):
-    with open("temp/score_objs", "rb") as f:
-        scores = pickle.load(f)
+# checks are false by default, turn on by params
+def main(standalone = False, chord_checks = {
+    "close": False,
+    "range": False
+}, transition_checks = {
+    "hidden_5th": False,
+    "hidden_8th": False,
+    "parallel_5th": False,
+    "parallel_8th": False
+}, max_semitone = 12):
+
+    global max_semitone_separation
+    # ie. chord and transition checks aren't passed in via another python program and is via argparse
+    if (standalone) :
+        parser = argparse.ArgumentParser(description = "Evaluates a realised SATB choral harmony for a single pickled file (from manual_harmony.py) containing realised and original music21 objects.")
+        parser.add_argument("file", default="temp/score_objs", nargs="?")
+        parser.add_argument("--all", action="store_true", help="Turns on all evaluation checks.")
+        parser.add_argument("--max-semitone", "--mss",type=int, default=12, help="Maximum semitone separation to differentiate what is considered close vs open harmony. Defaults to 12.")
+        
+        chord = parser.add_argument_group("chord checks")
+        chord.add_argument("--close", action="store_true", help="Turn on close harmony eval checks.")
+        chord.add_argument("--range", action="store_true", help="Turn on on in vocal range eval checks.")
+
+        transition = parser.add_argument_group("transition checks")
+        transition.add_argument("--parallel8", action="store_true", help="Turn on parallel octave eval checks.")
+        transition.add_argument("--parallel5", action="store_true", help="Turn on parallel 5th eval checks.")        
+        transition.add_argument("--hidden8", action="store_true", help="Turn on hidden octave eval checks.")
+        transition.add_argument("--hidden5", action="store_true", help="Turn on hidden 5th eval checks.")
+
+        args = parser.parse_args()
+
+
+        with open(args.file, "rb") as f:
+            scores = pickle.load(f)
+
+        if (args.all == True):
+            chord_checks["close"] = True
+            chord_checks["range"] = True
+            transition_checks["hidden_5th"]= True
+            transition_checks["hidden_8th"] = True
+            transition_checks["parallel_5th"] = True
+            transition_checks["parallel_8th"] = True
+
+        if (args.close):
+            chord_checks["close"] = True
+        if (args.range):
+            chord_checks["range"] = True
+        if (args.hidden5):
+            transition_checks["hidden_5th"]= True
+        if (args.hidden8):
+            transition_checks["hidden_8th"] = True
+        if (args.parallel5):
+            transition_checks["parallel_5th"] = True
+        if (args.parallel8):
+            transition_checks["parallel_8th"] = True
+
+        max_semitone_separation = args.max_semitone
+
+    else:
+        max_semitone_separation = args.max_semitone
+
 
     realised = scores["realised"]
 
@@ -280,34 +340,6 @@ def main(standalone = False):
     parts = list(scores["original"].values())
     for p in parts:
         original.insert(p)
-    
-
-    # False by default, turn on by params
-    chord_checks = {
-        "close": False,
-        "range": False
-    }
-
-    transition_checks = {
-        "hidden_5th": False,
-        "hidden_8th": False,
-        "parallel_5th": False,
-        "parallel_8th": False
-    }
-
-    
-
-    chord_checks["close"] = True
-    chord_checks["range"] = True
-    transition_checks["hidden_5th"]= True
-    transition_checks["hidden_8th"] = True
-    transition_checks["parallel_5th"] = True
-    transition_checks["parallel_8th"] = True
-
-    global max_semitone_separation
-    max_semitone_separation = 12
-
-
     rules_results = rules_based_eval(realised, chord_checks, transition_checks)
 
     print(rules_results)
