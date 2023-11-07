@@ -98,7 +98,7 @@ def get_pitches_music21_chords(chords: list, format) -> list:
 
 # http://web.mit.edu/music21/doc/usersGuide/usersGuide_09_chordify.html chordify
 
-def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 1, trans_adjust = 1):
+def rules_based_eval(score, chord_checks, trans_checks, analysed_key, local_adjust = 1, trans_adjust = 1):
     total_costs = 0
     local_list = []
     trans_list = []
@@ -110,8 +110,6 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 1, trans_
     chords = score.chordify(addPartIdAsGroup = True, removeRedundantPitches = False)
 
     fb = score.parts[-1]
-    analysed_key = score.analyze('key')
-    print("Analysed key of", analysed_key, "with correlation coefficient of", round(analysed_key.correlationCoefficient, 4))
 
 
     # make measure offsets for each score equal to each other so offset matching works
@@ -425,14 +423,17 @@ def main(standalone = False, chord_checks = {
     for p in parts:
         original.insert(p)
 
+    analysed_key = original.analyze('key')
+    if (standalone and args.print or to_print):
+        print("Analysed key of", analysed_key, "with correlation coefficient of", round(analysed_key.correlationCoefficient, 4))
     # original.show()
 
-    rules_results = rules_based_eval(realised, chord_checks, transition_checks)
+    rules_results = rules_based_eval(realised, chord_checks, transition_checks, analysed_key)
 
 
     similarity_results = similarity_eval(realised, original)
 
-    if (standalone and args.print):
+    if (standalone and args.print or to_print):
         print(rules_results)
         pp = pprint.PrettyPrinter()
         pp.pprint(similarity_results)

@@ -32,7 +32,7 @@ def main():
     results = []
     for i in range(iterations):
         returned = manual_parser()
-        result = eval_score(chord_checks=chord_checks, transition_checks=transition_checks, max_semitone=max_semitone, scores=returned)
+        result = eval_score(chord_checks=chord_checks, transition_checks=transition_checks, max_semitone=max_semitone, scores=returned, to_print=to_print)
 
         results.append(result)
         jaccard_avg += result["similarity"]["jaccard"]
