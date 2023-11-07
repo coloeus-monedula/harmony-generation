@@ -29,21 +29,29 @@ vocal_ranges = {
 }
 
 # chord location costs
+# http://www.choraleguide.com/vl-spacing.php voice crossing sometimes done to avoid parallels - implies that cost should be lower than parallel costs 
+# but given it's generally to avoid can't be TOO much lower
+# TODO: add "
 chord_costs = {
     # assume to fall under "smooth connection of each part" metric
     "close": -4,
     "doubled_leading": 1,
     # checks for each voice, up to 4 per chord in total
-    "not_in_range": 1 
+    "not_in_range": 1,
+    # ie. figure bass realisations not in realised - weighted strongly
+    "incomplete": 5,
+    "crossing": 2
 }
 
 # TODO: thresholding to see what is determined as "smooth connection"?
 # parallel fifth is successive fifth, hidden _ is a subcategory of successive _s hence the 3 weighting
-transition_costs = {
+# NOTE: voice overlap is kind of the "beginning" of a voice cross so is weighted similarity
+transition_costs = { 
     "parallel_8th": 5,
     "parallel_5th": 3,
     "hidden_5th": 3,
     "hidden_8th": 3,
+    "overlap": 2
 
 
 }
@@ -172,6 +180,14 @@ def eval_chord(chord, checks: dict, adjust_factor):
 
 
     # TODO: do check if doubled leading note ? - do they mean the 7th or just the semitoneness? 
+
+    # if (checks["incomplete"]):
+        # TODO: get figured bass numbers -> get intervals -> put into pitch names 
+        # HELL
+
+    if (checks["crossing"] and possibility.voiceCrossing(chord)):
+        cost += chord_costs["crossing"]
+
     return cost*adjust_factor
 
 
@@ -191,6 +207,8 @@ def eval_transitions(first, second, checks: dict):
     if (checks["parallel_8th"] and possibility.parallelOctaves(first, second)):
         cost += transition_costs["parallel_8th"]
 
+    if (checks["overlap"] and possibility.voiceOverlap(first, second)):
+        cost +=transition_costs["overlap"]
     
     return cost
 
@@ -274,12 +292,15 @@ def get_text_progressions(lyrics, has_measures):
 # checks are false by default, turn on by params
 def main(standalone = False, chord_checks = {
     "close": False,
-    "range": False
+    "range": False,
+    "incomplete": False,
+    "crossing": False
 }, transition_checks = {
     "hidden_5th": False,
     "hidden_8th": False,
     "parallel_5th": False,
-    "parallel_8th": False
+    "parallel_8th": False,
+    "overlap": False
 }, max_semitone = 12, scores = None):
 
     global max_semitone_separation
@@ -293,13 +314,15 @@ def main(standalone = False, chord_checks = {
         chord = parser.add_argument_group("chord checks")
         chord.add_argument("--close", action="store_true", help="Turn on close harmony eval checks.")
         chord.add_argument("--range", action="store_true", help="Turn on on in vocal range eval checks.")
+        chord.add_argument("--incomplete", action="store_true", help = "Turn on incomplete FB realisation checks.")
+        chord.add_argument("--crossing", action="store_true", help = "Turn on voice crossing realisation checks.")
 
         transition = parser.add_argument_group("transition checks")
         transition.add_argument("--parallel8", action="store_true", help="Turn on parallel octave eval checks.")
         transition.add_argument("--parallel5", action="store_true", help="Turn on parallel 5th eval checks.")        
         transition.add_argument("--hidden8", action="store_true", help="Turn on hidden octave eval checks.")
         transition.add_argument("--hidden5", action="store_true", help="Turn on hidden 5th eval checks.")
-
+        transition.add_argument("--overlap", action="store_true", help="Turn on voice overlap eval checks.")
         args = parser.parse_args()
 
 
@@ -309,15 +332,23 @@ def main(standalone = False, chord_checks = {
         if (args.all == True):
             chord_checks["close"] = True
             chord_checks["range"] = True
+            chord_checks["incomplete"] = True
+            chord_checks["crossing"] = True
             transition_checks["hidden_5th"]= True
             transition_checks["hidden_8th"] = True
             transition_checks["parallel_5th"] = True
             transition_checks["parallel_8th"] = True
+            transition_checks["overlap"] = True
+
 
         if (args.close):
             chord_checks["close"] = True
         if (args.range):
             chord_checks["range"] = True
+        if (args.incomplete):
+            chord_checks["incomplete"] = True
+        if (args.crossing):
+            chord_checks["crossing"] = True
         if (args.hidden5):
             transition_checks["hidden_5th"]= True
         if (args.hidden8):
@@ -326,6 +357,8 @@ def main(standalone = False, chord_checks = {
             transition_checks["parallel_5th"] = True
         if (args.parallel8):
             transition_checks["parallel_8th"] = True
+        if (args.overlap):
+            transition_checks["overlap"] = True
 
         max_semitone_separation = args.max_semitone
 

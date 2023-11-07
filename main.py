@@ -6,13 +6,16 @@ from eval import main as eval_score
 def main():
     chord_checks = {
     "close": True,
-    "range": True
+    "range": True,
+    "incomplete": True,
+    "crossing": True
     }
     transition_checks = {
     "hidden_5th": True,
     "hidden_8th": True,
     "parallel_5th": True,
-    "parallel_8th": True
+    "parallel_8th": True,
+    "overlap": True
     }
 
     max_semitone = 12
