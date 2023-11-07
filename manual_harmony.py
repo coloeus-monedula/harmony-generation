@@ -4,6 +4,7 @@ from lxml import etree
 from music21 import *
 import argparse
 import dill as pickle
+import traceback
 
 
 
@@ -38,7 +39,6 @@ def convert_music21(score_path, return_as_score = False):
     file.close()
 
     score = converter.parseFile(path)
-    # score.show()
     parts = score.parts
 
     # add part names
@@ -53,6 +53,8 @@ def convert_music21(score_path, return_as_score = False):
     parts[2].partAbbreviation = "T"
     parts[3].partAbbreviation = "B"
     parts[-1].partAbbreviation = "FB"
+
+    # score.show()
 
     if return_as_score:
         return score
@@ -95,6 +97,18 @@ def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_r
         fb_rules.applyConsecutivePossibRulesToResolution = rules_args["consecutive"]
         fb_rules.applySinglePossibRulesToResolution = rules_args["single"]
 
+        fb_rules.forbidParallelFifths = rules_args["parallel5"]
+        fb_rules.forbidParallelOctaves = rules_args["parallel8"]
+        fb_rules.forbidHiddenFifths = rules_args["hidden5"]
+        fb_rules.forbidHiddenOctaves = rules_args["hidden8"]
+
+        fb_rules.forbidVoiceCrossing = rules_args["crossing"]
+        fb_rules.forbidVoiceOverlap = rules_args["overlap"]
+        fb_rules.forbidIncompletePossibilities = rules_args["incomplete"]
+
+
+
+
     # editing original soprano part
     for key,part in voices.items():
         # deals with the first bar (if incomplete) so it aligns with realised values
@@ -107,12 +121,19 @@ def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_r
     if maxpitch == "s":
         # highest pitch becomes highest pitch in the soprano part
         highestPitch = sorted(voices["s"].pitches)[-1]
+    elif maxpitch == "n":
+        highestPitch = None
     else:
         highestPitch = maxpitch
 
     # have to do 4 parts, else 0 solutions
     # NOTE: if no realisations loosen upperMaxSemitone then partMovementLimits, then others 
-    realisation = fb.realize( maxPitch=highestPitch, fbRules=fb_rules)
+    # print(highestPitch)
+    try:
+        realisation = fb.realize( maxPitch=highestPitch, fbRules=fb_rules)
+    except Exception as e:
+        raise Exception("Error during realisation") from e
+
  
     realisation.keyboardStyleOutput = False
     realised_score = realisation.generateRandomRealization()
@@ -189,19 +210,29 @@ def manual_parser():
     parser.add_argument("--melody", "--m", default="s", nargs = 1, choices=["s","a","t"], type=str.lower, help="Which part (Soprano, Alto, Tenor) should be considered melody. Default is Soprano.")
     parser.add_argument("--replace","--r", nargs="*", choices=["s","a","t"],  type=str.lower, help = "Which realised parts (Soprano, Alto, Tenor) should be replaced with original parts. The melody line is always replaced, unless --compare is specified. Takes priority over --compare. " )
     parser.add_argument("--compare","--c", nargs="*",choices=["s","a","t"],  type=str.lower, help="Which realised parts (Soprano, Alto, Tenor) should have their original part on the score as comparison. ")
-    parser.add_argument("--maxpitch", "--mp", default="s", help = "Upper limit on highest pitch realisation will reach.")
-    parser.add_argument("--no-rules","--nr", action= "store_true", help = "If specified, doesn't apply a Rules object to the realisation.")
+    parser.add_argument("--maxpitch", "--mp", default="s", help = "Upper limit on highest pitch realisation will reach. Default is highest pitch in soprano part. Type 'n' for no max pitch.")
+    parser.add_argument("--default-rules","--dr", action= "store_true", help = "If specified, doesn't apply a custom Rules object to the realisation.")
     parser.add_argument("--keep-realised-melody", "--krm", action="store_true", help="If specified, doesn't replace the melody line with the original melody line.")
     parser.add_argument("--show", action = "store_true", help="Show realisation in score viewer.")
     parser.add_argument("--save", nargs = "?", const="temp/score_objs", help="Whether to save both the realised and original scores. Note that the original score currently won't include the continuo with FB markings ie. it is just SATB. Defaults to temp/score_objs.")
 
     rules = parser.add_argument_group("rules")
     rules.add_argument("--parts-sep", "--ps", default=0, type=int, help = "Maximum amount of semitones apart the upper parts of the realisation (here everything except bass) can be. Default is None (0) ie. no limitations. ")
-    rules.add_argument("--no-consec-rules", "--ncr", action="store_false", help="Doesn't apply consecutive possibility rules to possible realisations. ")
-    rules.add_argument("--no-single-rules", "--nsr", action = "store_false", help = "Doesn't apply single possibility rules to possible realisations. ")
+    rules.add_argument("--consec-rules", "--ncr", action="store_true", help="Applies consecutive possibility rules to possible realisations. ")
+    rules.add_argument("--single-rules", "--nsr", action = "store_true", help = "Applies single possibility rules to possible realisations. ")
+
+
+    # arguments that disable defaults
+    rules.add_argument("--hidden5", "--h5", action = "store_false", help = "DOESN'T forbid hidden 5ths if specified.")
+    rules.add_argument("--hidden8", "--h8", action = "store_false", help = "DOESN'T forbid hidden 8ves if specified.")
+    rules.add_argument("--parallel5", "--p5", action = "store_false", help = "DOESN'T forbid parallel 5ths if specified.")
+    rules.add_argument("--parallel8", "--p8", action = "store_false", help = "DOESN'T forbid parallel 8ves if specified.")
+    rules.add_argument("--incomplete", action = "store_false", help = "DOESN'T forbid incomplete possibilities if specified. This is ideally the last option you want to do since it will mean the realisation won't be complete!")
+    rules.add_argument("--voice-overlap", "--vo", action = "store_false", help = "DOESN'T forbid voice overlap if specified.")
+    rules.add_argument("--voice-crossing", "--vc", action = "store_false", help = "DOESN'T forbid voice crossing if specified.")    
 
     # wrap in tuple individually
-    rules.add_argument("--part-move-limit", "--part-limit", "--pl", "--pml", nargs=2, action="append", help = "Set maximum amount of semitones a part's pitch can move to for the next note. First number is partNumber from highest part (soprano) to lowest (bass), second number is maximum semitone separation. Not specifying sets limits to [ (1,5), (2, 14), (3, 14)].", type=int)
+    rules.add_argument("--part-move-limit", "--part-limit", "--pl", "--pml", nargs=2, action="append", help = "Set maximum amount of semitones a part's pitch can move to for the next note. First number is partNumber from highest part (soprano) to lowest (tenor), second number is maximum semitone separation. Not specifying sets limits to [ (1,5), (2, 14), (3, 14)]. Add this argument multiple times to set limits from soprano to tenor.", type=int)
 
 
     args = parser.parse_args()
@@ -211,7 +242,7 @@ def manual_parser():
 
     rules_args = None
     # adds rules to a dict
-    if (args.no_rules == False):
+    if (args.default_rules == False):
         rules_args = {}
 
         if args.parts_sep == 0:
@@ -219,8 +250,17 @@ def manual_parser():
         else:
             rules_args["separation"] = args.parts_sep
 
-        rules_args["consecutive"] = args.no_consec_rules
-        rules_args["single"] = args.no_single_rules
+        rules_args["consecutive"] = args.consec_rules
+        rules_args["single"] = args.single_rules
+        rules_args["parallel5"] = args.parallel5
+        rules_args["parallel8"] = args.parallel8
+        rules_args["hidden5"] = args.hidden5
+        rules_args["hidden8"] = args.hidden8
+        rules_args["crossing"] = args.voice_crossing
+        rules_args["overlap"] = args.voice_overlap
+        rules_args["incomplete"] = args.incomplete
+
+
 
         if args.part_move_limit is None:
             rules_args["move_lim"] = [(1,5), (2, 14), (3, 14)]
@@ -230,6 +270,8 @@ def manual_parser():
                 move_lim.append(tuple(pair))
             
             rules_args["move_lim"] = move_lim
+
+        
 
 
     # transcribing which realised parts get replaced, which get an additional OG part and which stay the same
@@ -262,7 +304,6 @@ def manual_parser():
     # score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
     # fb = extract_FB(score_path)
     voices = convert_music21(score_path)
-    print(voices)
     realised = fb_realisation_satb(voices,  args.maxpitch, score_parts, rules_args, args.show)
 
     score_objs = {

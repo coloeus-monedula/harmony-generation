@@ -9,10 +9,10 @@ def preprocess(file):
 
     # TO avoid the chord issue mentioned in repo, convert to json ?
     music21_obj = convert_music21(file, return_as_score=True)
-    music21_obj.show()
+    # music21_obj.show()
 
-    music = muspy.from_music21(music21_obj)
-    music.print()
+    music = muspy.from_music21(music21_obj.parts[-1])
+    print(music)
 
 # https://github.com/magenta/note-seq
 
