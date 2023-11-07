@@ -1,6 +1,6 @@
 import argparse
-from music21.figuredBass import possibility
-from music21 import chord
+from music21.figuredBass import possibility, realizerScale
+from music21 import chord, note
 from music21 import *
 from nltk import ngrams, FreqDist
 from nltk.metrics.distance import jaro_similarity
@@ -40,7 +40,7 @@ chord_costs = {
     "not_in_range": 1,
     # ie. figure bass realisations not in realised - weighted strongly
     "incomplete": 5,
-    "crossing": 2
+    "crossing": 1.5
 }
 
 # TODO: thresholding to see what is determined as "smooth connection"?
@@ -51,7 +51,7 @@ transition_costs = {
     "parallel_5th": 3,
     "hidden_5th": 3,
     "hidden_8th": 3,
-    "overlap": 2
+    "overlap": 1.5
 
 
 }
@@ -78,8 +78,11 @@ def get_pitches_music21_parts(parts: dict, format) -> dict:
 # if chords - returns list of tuples of Pitches 1:1 to Chords
 def get_pitches_music21_chords(chords: list, format) -> list:
     pitches_list = []
+
     for aChord in chords.recurse().getElementsByClass(chord.Chord):
         pitches = aChord.pitches
+
+        # print("chord:", aChord.lyrics)
         if (format == "obj"):
             pitches_list.append(pitches)
         elif (format =="number"):
@@ -88,7 +91,8 @@ def get_pitches_music21_chords(chords: list, format) -> list:
 
     return pitches_list
 
-# TODO: rules eval - use the figuredBass.possibility object to check manually
+
+    
 # negative rules increase cost bc less likely
 # https://web.mit.edu/music21/doc/moduleReference/moduleChord.html#chord also use the Chord() funcs
 
@@ -104,14 +108,47 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 1, trans_
     # "If a Score or Part of Measures is provided, a Stream of Measures will be returned"
     # remove redundant false to account for the fact sometimes voices sing the same notes
     chords = score.chordify(addPartIdAsGroup = True, removeRedundantPitches = False)
-    # chords.show("text")
 
-    # TODO: convert to chordify
-    # iterate through, convert to pitch (store in Score format)? use Chord.pitches
-    # get big list, keep track of index and total length
-    # up to and excluding i = n-1
-    # run first index through chord eval, then run both through transition eval to get cost
-    # update running score
+    fb = score.parts[-1]
+    analysed_key = score.analyze('key')
+    print("Analysed key of", analysed_key, "with correlation coefficient of", round(analysed_key.correlationCoefficient, 4))
+
+
+    # make measure offsets for each score equal to each other so offset matching works
+    # NOTE: assumes the chordified and normal parts should have equal number of measures
+    fb_measures = fb.getElementsByClass(stream.Measure)
+    chords_measures = chords.getElementsByClass(stream.Measure)
+    for i in range(0,len(fb_measures)):
+        # match chordify measure offset to fb's value
+        fb_offset = fb_measures[i].offset
+        chords_measures[i].offset = fb_offset
+
+    
+    #1:1 fb notation to chords, either None or in notationString format 
+    fb_list = []
+    # https://groups.google.com/g/music21list/c/pr8616w2bT0/m/90AatjqsAQAJ
+    # adding lyrics to chordify function based off this one 
+    for aChord in chords.flatten():
+        chord_offset = aChord.offset
+
+        for melody_note in fb.flatten().getElementsByOffset(chord_offset):
+            try:
+                lyrics = melody_note.lyrics
+                # exclude lyrics that dont have FB notation
+                if lyrics[0].rawText.strip() == "":
+                    fb_list.append(None)
+                else:
+                    notation_str = []
+                    for lyric in lyrics:
+                        notation_str.append(lyric.rawText)
+                        # also adds to chords as lyrics in case it's needed in the future
+                        aChord.addLyric(lyric.rawText, lyric.number)
+                    fb_list.append(",".join(notation_str))
+
+            except (AttributeError):
+                continue
+
+    # print(fb_list)
     pitches = get_pitches_music21_chords(chords, format="obj")
     size = len(pitches)
 
@@ -120,7 +157,7 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 1, trans_
         first = pitches[i]
         second = pitches[i+1]
 
-        local_cost = eval_chord(first, chord_checks, local_adjust)
+        local_cost = eval_chord(first, chord_checks, local_adjust, fb_list[i], analysed_key)
         transition_cost = trans_adjust * eval_transitions(first, second, trans_checks)
 
         local_total+=local_cost
@@ -135,7 +172,7 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 1, trans_
     # n - 1 chord
     first = pitches[size - 2]
     second = pitches[size - 1]
-    local_cost = eval_chord(first, chord_checks, local_adjust) + eval_chord(second, chord_checks, local_adjust)
+    local_cost = eval_chord(first, chord_checks, local_adjust, fb_list[size-2],  analysed_key) + eval_chord(second, chord_checks, local_adjust, fb_list[size-1],  analysed_key)
     transition_cost = eval_transitions(first, second, trans_checks)
     total = local_cost + transition_cost
 
@@ -155,7 +192,7 @@ def rules_based_eval(score, chord_checks, trans_checks, local_adjust = 1, trans_
 
 # chord placement rules
 # we are ignoring the figure interpretation metrics for now as it's a lot of work
-def eval_chord(chord, checks: dict, adjust_factor):
+def eval_chord(chord, checks: dict, adjust_factor, fb, analyzed_key):
 
     cost = 0
     if (checks["close"] and possibility.upperPartsWithinLimit(chord, max_semitone_separation)):
@@ -181,9 +218,20 @@ def eval_chord(chord, checks: dict, adjust_factor):
 
     # TODO: do check if doubled leading note ? - do they mean the 7th or just the semitoneness? 
 
-    # if (checks["incomplete"]):
-        # TODO: get figured bass numbers -> get intervals -> put into pitch names 
-        # HELL
+    # NOTE: currently only checks if there are explicit FB notations on the screen
+    if (checks["incomplete"] and fb is not None) :
+        (s, a, t, b) = chord
+
+        # what the program thinks the realised piece's keysig is - may not be the original's
+        tonic = analyzed_key.tonic.name
+        key_scale = analyzed_key.mode
+        # print(tonic, key_scale)
+        scale = realizerScale.FiguredBassScale(tonic, key_scale)
+        pitches_to_include = scale.getPitchNames(b.nameWithOctave, fb)
+        # print(pitches_to_include)
+        if possibility.isIncomplete(chord, pitches_to_include):
+            cost += chord_costs["incomplete"]
+
 
     if (checks["crossing"] and possibility.voiceCrossing(chord)):
         cost += chord_costs["crossing"]
@@ -301,7 +349,7 @@ def main(standalone = False, chord_checks = {
     "parallel_5th": False,
     "parallel_8th": False,
     "overlap": False
-}, max_semitone = 12, scores = None):
+}, max_semitone = 12, scores = None, to_print=False):
 
     global max_semitone_separation
     # ie. chord and transition checks aren't passed in via another python program and is via argparse
@@ -310,6 +358,7 @@ def main(standalone = False, chord_checks = {
         parser.add_argument("file", default="temp/score_objs", nargs="?")
         parser.add_argument("--all", action="store_true", help="Turns on all evaluation checks.")
         parser.add_argument("--max-semitone", "--mss",type=int, default=12, help="Maximum semitone separation to differentiate what is considered close vs open harmony. Defaults to 12.")
+        parser.add_argument("--print", action="store_true")
         
         chord = parser.add_argument_group("chord checks")
         chord.add_argument("--close", action="store_true", help="Turn on close harmony eval checks.")
@@ -367,6 +416,7 @@ def main(standalone = False, chord_checks = {
 
 
     realised = scores["realised"]
+    # realised.show()
 
     # reconstructing original score
     # have to do this for both
@@ -375,14 +425,17 @@ def main(standalone = False, chord_checks = {
     for p in parts:
         original.insert(p)
 
+    # original.show()
 
     rules_results = rules_based_eval(realised, chord_checks, transition_checks)
 
-    # print(rules_results)
 
     similarity_results = similarity_eval(realised, original)
-    pp = pprint.PrettyPrinter()
-    # pp.pprint(similarity_results)
+
+    if (standalone and args.print):
+        print(rules_results)
+        pp = pprint.PrettyPrinter()
+        pp.pprint(similarity_results)
 
     return {
         "rules": rules_results,

@@ -20,6 +20,7 @@ def main():
 
     max_semitone = 12
     iterations = 5
+    to_print = False
 
     cost_avg = 0
     jaccard_avg = 0

@@ -274,7 +274,7 @@ def turn_FBxml_into_lyrics(FBxml: Element) -> []:
         
 
         fig_string_xml = etree.SubElement(lyric, "text")
-        fig_string_xml.text = fig_string
+        fig_string_xml.text = fig_string.strip()
 
         
         lyrics.append(lyric)
