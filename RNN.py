@@ -10,7 +10,7 @@ def preprocess(file):
     # TODO: how to get FBs here? run it through extract baseline - get lyrics separately - rerun with "normal bass"?
 
     # TO avoid the chord issue mentioned in repo, convert to json ?
-    music21_obj = convert_music21(file, return_as_score=True)
+    # music21_obj = convert_music21(file, return_as_score=True)
     # music21_obj.show()
 
     # music = muspy.from_music21(music21_obj.parts[-1])
@@ -21,6 +21,7 @@ def preprocess(file):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("file")
+    # default should be wherever the translated musicxml files are
     parser.add_argument("--folder","--f", default="chorales/FB_source/musicXML_master/")
 
 

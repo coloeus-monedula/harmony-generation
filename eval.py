@@ -1,6 +1,6 @@
 import argparse
 from music21.figuredBass import possibility, realizerScale
-from music21 import chord, stream
+from music21 import chord, stream, roman
 from nltk import ngrams, FreqDist
 from nltk.metrics.distance import jaro_similarity
 import dill as pickle
@@ -411,7 +411,9 @@ def main(standalone = False, chord_checks = {
     else:
         max_semitone_separation = max_semitone
 
-
+    if (scores is None):
+        raise Exception("Score item is None")
+    
     realised = scores["realised"]
     # realised.show()
 

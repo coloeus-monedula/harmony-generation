@@ -9,7 +9,7 @@ lxml = "*"
 nltk = "*"
 matplotlib = "*"
 dill = "*"
-muspy = {ref = "b92910f3314a64f305ee6977e77dca342c90a2d7", git = "git+https://github.com/salu133445/muspy"}
+muspy = "*"
 torch = "*"
 
 [dev-packages]

@@ -1,4 +1,3 @@
-import pprint
 from manual_harmony import manual_parser
 from eval import main as eval_score
 
