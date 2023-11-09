@@ -310,7 +310,7 @@ def manual_parser():
         "realised" : realised, 
         "original" : voices
     }
-    # NOTE: currently, original is SATB only since the FB part is popped off in the realisation stage.
+    # NOTE: FB part is popped off in the realisation stage for the original score, will just appear as SATB
 
     if args.save is not None:
         with open(args.save, "wb") as f:

@@ -1,6 +1,7 @@
 from xml.etree.ElementTree import Element
 from lxml import etree
 from copy import deepcopy
+import math
 
 
 # modifiers dictionary taken from 
@@ -47,6 +48,8 @@ standardNoteTypeValue = {
     32: "maxima"
 }
 
+
+# https://stackoverflow.com/questions/13683014/lxml-not-adding-newlines-when-inserting-a-new-element-into-existing-xml do this? 
 
 def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretree = False):
     score_tree = etree.parse(score_path)
@@ -175,6 +178,12 @@ def combine_bassvoice_and_FB(continuo: Element, bass: Element, divisions: int) -
                 FB_measure.append(deepcopy(bass_child))
                 bass_child = bass_child.getnext()
 
+            # TODO: this happens when there is mismatch between continuo and bass i think??
+            # todo: add the CONTINUO NOTE in, split bass?? 
+            if bass_child is None:
+                print("Bass child is none")
+                continue
+
             if len(temp_fb) == 1:
                 # adds lyrics 
                 lyrics = temp_fb[0]
@@ -203,8 +212,8 @@ def append_lyrics_to_bass(fb_bass, lyrics):
     return fb_bass
 
 def create_new_bassnote(fb: Element, bass_child: Element, divisions):
-    # fetch duration value from first <lyric> and add to copied <note>
-    # then remove it from <lyrics>
+    # fetch duration value from first <fb> and add to copied <note>
+    # then remove it from <fb>
 
     new_duration = fb[0].xpath("./duration")[0]
     bassnote = deepcopy(bass_child)
@@ -215,16 +224,61 @@ def create_new_bassnote(fb: Element, bass_child: Element, divisions):
     # NOTE: may not handle tuplets very well. also assumes the <divisions> value is the same across bass and continuo.
     new_note_value = round(int(new_duration.text) / divisions, 2)
     new_note_type = standardNoteTypeValue.get(new_note_value)
+    dot_num = 0
     if (new_note_type is None):
-        print("Error: no note type found for note value of" + new_note_value + ". Defaulting to crotchets")
-        new_note_type = "quarter"
-    
-    bassnote.xpath("./type")[0].text = new_note_type
+        # creates dotted note
+        # print("Error: no note type found for note value of", new_note_value, ". Defaulting to crotchets")
+        # new_note_type = "quarter"
+        # print(new_note_value)
+        (new_note_type, dot_num) = create_dotted_note(new_note_value)
+
+    type_xml=bassnote.xpath("./type")[0]
+    type_xml.text = new_note_type
+    # print(etree.tostring(bassnote, encoding="unicode", pretty_print=True))
+
+    # add dots if they're there
+    for i in range(dot_num):
+        type_xml.addnext(etree.XML("<dot/>"))
 
     fb[0].remove(new_duration)
     fb_bass = append_lyrics_to_bass(bassnote, fb)
     return fb_bass
 
+
+# goes up to double dots max
+# returns (base note type, number of dots to add)
+def create_dotted_note(note_value):
+    lower_bound = 32
+    upper_bound = 0.03
+
+    note_value_list = list(standardNoteTypeValue)
+    # upper bound starts at bottom, goes up until gets to first value that is more than than note value
+    counter = 1
+    while (upper_bound < note_value):
+        upper_bound = note_value_list[counter]
+        counter +=1
+
+    # lower bound starts at the top, goes down until gets to first value that is less than the note value
+    counter = len(note_value_list) - 2
+    while (lower_bound > note_value):
+        lower_bound = note_value_list[counter]
+        counter -=1
+
+
+    # halve, see if it fits note value. if so return dots = 1 and lower bound note
+    # if it doesn't, halve again between that bound and upper bound. 
+    base_note_type = standardNoteTypeValue.get(lower_bound)
+    
+    middle = lower_bound + round((upper_bound-lower_bound)*0.5, 2)
+    if (middle == round(note_value, 2)):
+        return (base_note_type, 1)
+    
+    middle = middle + round((upper_bound- middle)*0.5, 2)
+    if (middle == round(note_value, 2)):
+        return (base_note_type, 2)
+    
+    print("Could not find dotted equivalent for", note_value, ". Defaulting to two dots. ")
+    return (base_note_type, 2)
 
 
 
@@ -292,9 +346,13 @@ def turn_FBxml_into_lyrics(FBxml: Element) -> []:
 
 
 def main():
-    score_path = "chorales/FB_source/musicXML_master/BWV_5.07_FB.musicxml"
-    fb = extract_FB(score_path, use_music21_realisation = True)
-    print(etree.tostring(fb, encoding="unicode", pretty_print=True))
+    score_path = "./chorales/FB_source/musicXML_master/BWV_177.05b_FB.musicxml"
+    fb = extract_FB(score_path, use_music21_realisation = True, return_whole_scoretree=True)
+
+    file = open("temp/test.musicxml", "wb")
+    file.write(etree.tostring(fb, pretty_print=True))
+    file.close()
+    # print(etree.tostring(fb, encoding="unicode", pretty_print=True))
 
 if __name__ == "__main__":
     main()
