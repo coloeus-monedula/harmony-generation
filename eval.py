@@ -1,7 +1,6 @@
 import argparse
 from music21.figuredBass import possibility, realizerScale
-from music21 import chord, note
-from music21 import *
+from music21 import chord, stream
 from nltk import ngrams, FreqDist
 from nltk.metrics.distance import jaro_similarity
 import dill as pickle
@@ -424,7 +423,7 @@ def main(standalone = False, chord_checks = {
         original.insert(p)
 
     analysed_key = original.analyze('key')
-    if (standalone and args.print or to_print):
+    if (to_print or standalone and args.print ):
         print("Analysed key of", analysed_key, "with correlation coefficient of", round(analysed_key.correlationCoefficient, 4))
     # original.show()
 
