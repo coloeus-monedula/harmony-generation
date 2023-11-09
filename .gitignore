@@ -2,3 +2,4 @@ venv/
 chorales/
 __pycache__/
 temp/
+data/
