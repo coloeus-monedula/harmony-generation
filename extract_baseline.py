@@ -79,7 +79,7 @@ def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretr
 
         part_list = root.xpath("./part-list")[0]
         part_list.append(fb_scorepart)
-        # print(etree.tostring(fb_scorepart, encoding="unicode", pretty_print=True))
+
 
     else:
         for measure in continuo.iter("measure"):
@@ -178,10 +178,15 @@ def combine_bassvoice_and_FB(continuo: Element, bass: Element, divisions: int) -
                 FB_measure.append(deepcopy(bass_child))
                 bass_child = bass_child.getnext()
 
-            # TODO: this happens when there is mismatch between continuo and bass i think??
+            # TODO: compare bass note and fb note duration.
+            # if FB note is longer than bass note and next child has FB notation on, insert next FB note in 
+
+
+            # TODO: this happens when there is mismatch between continuo and bass i think?? shows up at the end of a bar
             # todo: add the CONTINUO NOTE in, split bass?? 
+            # print(etree.tostring(child, encoding="unicode", pretty_print=True))
             if bass_child is None:
-                print("Bass child is none")
+                print("Error: Bass child is None - suggests a unresolved mismatch between bass and accompaniment part.")
                 continue
 
             if len(temp_fb) == 1:
@@ -218,6 +223,10 @@ def create_new_bassnote(fb: Element, bass_child: Element, divisions):
     new_duration = fb[0].xpath("./duration")[0]
     bassnote = deepcopy(bass_child)
     bassnote.xpath("./duration")[0].text = new_duration.text
+
+    # remove <dot> if exists since that alters note and we're making a new one entirely
+    for dot in bassnote.xpath("./dot"):
+        dot.getparent().remove(dot)
 
     # old note / divisions to get "standard value". then multiply by fb duration / old duration to split further between the fb
     # which cancels out to fb duration / divisions
@@ -346,7 +355,8 @@ def turn_FBxml_into_lyrics(FBxml: Element) -> []:
 
 
 def main():
-    score_path = "./chorales/FB_source/musicXML_master/BWV_177.05b_FB.musicxml"
+    # score_path = "./chorales/FB_source/musicXML_master/BWV_177.05b_FB.musicxml"
+    score_path = "./chorales/FB_source/musicXML_master/BWV_248.28_FB.musicxml"
     fb = extract_FB(score_path, use_music21_realisation = True, return_whole_scoretree=True)
 
     file = open("temp/test.musicxml", "wb")
