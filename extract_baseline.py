@@ -51,7 +51,7 @@ standardNoteTypeValue = {
 
 # https://stackoverflow.com/questions/13683014/lxml-not-adding-newlines-when-inserting-a-new-element-into-existing-xml do this? 
 
-def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretree = False):
+def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretree = False, combine_parts = False):
     score_tree = etree.parse(score_path)
     root = score_tree.getroot()
 
@@ -72,12 +72,18 @@ def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretr
         bass = list(parts[-2].iter("measure"))
         continuo_measures = list(continuo.iter("measure"))
         for i in range(len(bass)):
-            measure = combine_bassvoice_and_FB(continuo_measures[i], bass[i], divisions)
+            if (combine_parts):
+                measure = combine_two_parts(continuo_measures[i], bass[i], divisions)
+            else:
+                measure = convert_one_part(continuo_measures[i], divisions)
             fb.append(measure)
 
         #add part-list info here
         fb_scorepart = etree.Element("score-part", id="FB")
-        etree.SubElement(fb_scorepart, "part-name").text = "Bass and FB"
+        if (combine_parts):
+            etree.SubElement(fb_scorepart, "part-name").text = "Bass and FB"
+        else:
+            etree.SubElement(fb_scorepart, "part-name").text = "Converted FB"
 
         part_list = root.xpath("./part-list")[0]
         part_list.append(fb_scorepart)
@@ -150,12 +156,20 @@ def create_FB_measure(measure: Element) -> Element:
     return FB_measure 
 
 
+
+# traverse through fb
+# add figured bass to temp fb list
+# add everything else to measure
+# just call combine two parts lol??
+def convert_one_part(part: Element, divisions: int) -> Element:
+    return combine_two_parts(part, part, divisions)
+
 # instead of creating a seperate FB part, combines bass voice part and the FB notations as lyrics
 # in order to use the music21 realisations
 # since it is 1:1 each FB notation is matched to a bass voice note or a new note is created
 
 # NOTE: assumes bass and continuo have the same notes albeit transposed an octave.
-def combine_bassvoice_and_FB(continuo: Element, bass: Element, divisions: int) -> Element:
+def combine_two_parts(continuo: Element, bass: Element, divisions: int) -> Element:
     bass_attrib = dict(bass.attrib)
 
     FB_measure:Element = etree.Element("measure")
@@ -234,7 +248,6 @@ def create_new_bassnote(fb: Element, bass_child: Element, divisions):
     # which cancels out to fb duration / divisions
     # NOTE: may not handle tuplets very well. also assumes the <divisions> value is the same across bass and continuo.
     new_note_value = round(int(new_duration.text) / divisions, 2)
-    print(new_duration.text, divisions)
     new_note_type = standardNoteTypeValue.get(new_note_value)
     dot_num = 0
     if (new_note_type is None):
@@ -360,7 +373,7 @@ def turn_FBxml_into_lyrics(FBxml: Element) -> []:
 def main():
     # score_path = "./chorales/FB_source/musicXML_master/BWV_177.05b_FB.musicxml"
     score_path = "./chorales/FB_source/musicXML_master/BWV_248.28_FB.musicxml"
-    score_path = "./temp/test.musicxml"
+    # score_path = "./temp/test.musicxml"
 
     fb = extract_FB(score_path, use_music21_realisation = True, return_whole_scoretree=True)
 
