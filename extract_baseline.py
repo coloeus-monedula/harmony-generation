@@ -66,7 +66,9 @@ def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretr
     fb = etree.Element("part", id="FB")
     if (use_music21_realisation) :
         # NOTE: assumes bass voice is second to last part
-        divisions = int(parts[-2].xpath('measure[1]/attributes/divisions')[0].text)
+        # changed this to divisions of FB part since spliced together Fb-bass part has different divisions
+        divisions = int(parts[-1].xpath('measure[1]/attributes/divisions')[0].text)
+        print(divisions)
         bass = list(parts[-2].iter("measure"))
         continuo_measures = list(continuo.iter("measure"))
         for i in range(len(bass)):
@@ -232,6 +234,7 @@ def create_new_bassnote(fb: Element, bass_child: Element, divisions):
     # which cancels out to fb duration / divisions
     # NOTE: may not handle tuplets very well. also assumes the <divisions> value is the same across bass and continuo.
     new_note_value = round(int(new_duration.text) / divisions, 2)
+    print(new_duration.text, divisions)
     new_note_type = standardNoteTypeValue.get(new_note_value)
     dot_num = 0
     if (new_note_type is None):
@@ -249,7 +252,7 @@ def create_new_bassnote(fb: Element, bass_child: Element, divisions):
     for i in range(dot_num):
         type_xml.addnext(etree.XML("<dot/>"))
 
-    fb[0].remove(new_duration)
+    new_duration.getparent().remove(new_duration)
     fb_bass = append_lyrics_to_bass(bassnote, fb)
     return fb_bass
 
