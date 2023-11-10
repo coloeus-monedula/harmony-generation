@@ -263,13 +263,13 @@ def create_dotted_note(note_value):
     note_value_list = list(standardNoteTypeValue)
     # upper bound starts at bottom, goes up until gets to first value that is more than than note value
     counter = 1
-    while (upper_bound < note_value):
+    while (upper_bound < note_value and counter < len(note_value_list)):
         upper_bound = note_value_list[counter]
         counter +=1
 
     # lower bound starts at the top, goes down until gets to first value that is less than the note value
     counter = len(note_value_list) - 2
-    while (lower_bound > note_value):
+    while (lower_bound > note_value and counter > 0):
         lower_bound = note_value_list[counter]
         counter -=1
 
@@ -357,9 +357,11 @@ def turn_FBxml_into_lyrics(FBxml: Element) -> []:
 def main():
     # score_path = "./chorales/FB_source/musicXML_master/BWV_177.05b_FB.musicxml"
     score_path = "./chorales/FB_source/musicXML_master/BWV_248.28_FB.musicxml"
+    score_path = "./temp/test.musicxml"
+
     fb = extract_FB(score_path, use_music21_realisation = True, return_whole_scoretree=True)
 
-    file = open("temp/test.musicxml", "wb")
+    file = open("temp/test_fb.musicxml", "wb")
     file.write(etree.tostring(fb, pretty_print=True))
     file.close()
     # print(etree.tostring(fb, encoding="unicode", pretty_print=True))

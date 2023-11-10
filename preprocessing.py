@@ -22,32 +22,33 @@ def combine_bassvoice_accomp(file, return_type = "tree"):
     new_score.append(accomp)
 
     chords = new_score.chordify()
-    # new_score.show()
 
     # single_notes = stream.Part()
     for c in chords.recurse().getElementsByClass(chord.Chord):
         c.sortAscending(inPlace=True)
         notes = c.notes
         # keep highest note as this preserves as much bass voice as possible
-        # print(notes[len(notes)-1].pitch)
         for i in range(len(notes) -1):
             to_remove = notes[i]
             c.remove(to_remove)
     
-    # removes unnecessary formed ties
-    chords.stripTies(inPlace=True)
+
     filepath = path.join("temp", path.basename(file))
     chords.write("musicxml", fp = filepath)
 
     combined_xml = etree.parse(filepath)
-    combined_part = list(combined_xml.getroot().iter("part"))[0]
+    combined_part = combined_xml.xpath("./part")[0]
+
     original = etree.parse(file)
 
     parts =original.xpath("./part")
-    print(parts)
     og_bass = parts[3]
-    og_bass.addnext(combined_part)
-    og_bass.getparent().remove(og_bass)
+    og_bass.getparent().replace(og_bass, combined_part)
+
+    fb_scorepart = combined_xml.xpath("./part-list")[0][0]
+
+    b_part_list = original.xpath("./part-list")[0][3]
+    b_part_list.getparent().replace(b_part_list, fb_scorepart)
     
     # if return_type == "file":
     file = open("temp/test.musicxml", "wb")
