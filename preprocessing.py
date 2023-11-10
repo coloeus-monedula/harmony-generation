@@ -3,7 +3,59 @@ from os import path, makedirs
 from extract_baseline import extract_FB
 from lxml import etree
 import muspy
-from music21 import converter
+from music21 import converter, stream, chord, musicxml
+
+
+# music21 combines the two parts using chordify, takes the top layer of notes if there's a chord
+# then export to musicxml, open and grab the part in xml, replace where bass is in original score
+# output as musicxml or as file
+def combine_bassvoice_accomp(file, return_type = "tree"):
+
+    score = converter.parseFile(file)
+    parts = score.parts
+
+    b = parts[3]
+    accomp = parts[4]
+
+    new_score = stream.Score()
+    new_score.append(b)
+    new_score.append(accomp)
+
+    chords = new_score.chordify()
+    # new_score.show()
+
+    # single_notes = stream.Part()
+    for c in chords.recurse().getElementsByClass(chord.Chord):
+        c.sortAscending(inPlace=True)
+        notes = c.notes
+        # keep highest note as this preserves as much bass voice as possible
+        # print(notes[len(notes)-1].pitch)
+        for i in range(len(notes) -1):
+            to_remove = notes[i]
+            c.remove(to_remove)
+    
+    # removes unnecessary formed ties
+    chords.stripTies(inPlace=True)
+    filepath = path.join("temp", path.basename(file))
+    chords.write("musicxml", fp = filepath)
+
+    combined_xml = etree.parse(filepath)
+    combined_part = list(combined_xml.getroot().iter("part"))[0]
+    original = etree.parse(file)
+
+    parts =original.xpath("./part")
+    print(parts)
+    og_bass = parts[3]
+    og_bass.addnext(combined_part)
+    og_bass.getparent().remove(og_bass)
+    
+    # if return_type == "file":
+    file = open("temp/test.musicxml", "wb")
+    file.write(etree.tostring(original, pretty_print=True))
+    file.close()
+
+    # chords.show()
+    # pass
 
 # limiting the scores used to SATB + continuo bassline only
 # given a music21 score, checks that there are 5 parts and that four of them is voice
@@ -86,10 +138,12 @@ def add_tokenised_FB_dataset(converted_folder):
 
 
 def main():
-    in_folder = "chorales/FB_source/musicXML_master"
-    out_folder = "added_FB"
-    add_FB_to_scores(in_folder, out_folder, verbose=True)
+    # in_folder = "chorales/FB_source/musicXML_master"
+    # out_folder = "added_FB"
+    # add_FB_to_scores(in_folder, out_folder, verbose=True)
 
+    file = "./chorales/FB_source/musicXML_master/BWV_248.59_FB.musicxml"
+    combine_bassvoice_accomp(file)
 
 
 if __name__ == "__main__":

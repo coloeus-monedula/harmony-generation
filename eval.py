@@ -299,12 +299,14 @@ def similarity_eval(realised, original, ngrams_n = 2, show = False):
 
 
 # returns a stream of Measures with roman numerals of the chord annotated as lyrics  
-def get_chord_progressions(score):
+def get_chord_progressions(score: stream.Score):
     # get key sig
     analysed_key = score.analyze('key')
     # print(analysed_key.correlationCoefficient)
 
     chords = score.chordify()
+    # TODO: test if this changes anything
+    chords.stripTies(inPlace=True)
 
     for c in chords.recurse().getElementsByClass(chord.Chord):
         roman_num = roman.romanNumeralFromChord(c, analysed_key)
