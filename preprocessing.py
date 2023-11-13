@@ -94,7 +94,7 @@ def add_FB_to_scores(in_folder, out_folder, verbose):
     for f in files:
         if check_score_format(f, verbose) == True:
             print("file: ", f)
-            added_FB = extract_FB(f, use_music21_realisation=True, return_whole_scoretree=True)
+            added_FB = extract_FB(f, use_music21_realisation=True, return_whole_scoretree=True, remove_OG_accomp=True)
 
             basename = path.basename(f)
             filename = path.join(out_folder, basename)
@@ -139,12 +139,12 @@ def add_tokenised_FB_dataset(converted_folder):
 
 
 def main():
-    # in_folder = "chorales/FB_source/musicXML_master"
-    # out_folder = "added_FB"
-    # add_FB_to_scores(in_folder, out_folder, verbose=True)
+    in_folder = "chorales/FB_source/musicXML_master"
+    out_folder = "added_FB"
+    add_FB_to_scores(in_folder, out_folder, verbose=True)
 
-    file = "./chorales/FB_source/musicXML_master/BWV_248.59_FB.musicxml"
-    combine_bassvoice_accomp(file)
+    # file = "./chorales/FB_source/musicXML_master/BWV_248.59_FB.musicxml"
+    # combine_bassvoice_accomp(file)
 
 
 if __name__ == "__main__":

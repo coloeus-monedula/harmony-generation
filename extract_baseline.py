@@ -51,7 +51,8 @@ standardNoteTypeValue = {
 
 # https://stackoverflow.com/questions/13683014/lxml-not-adding-newlines-when-inserting-a-new-element-into-existing-xml do this? 
 
-def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretree = False, combine_parts = False):
+# remove comparison removes the original continuo part
+def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretree = False, combine_parts = False, remove_OG_accomp = False):
     score_tree = etree.parse(score_path)
     root = score_tree.getroot()
 
@@ -68,7 +69,6 @@ def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretr
         # NOTE: assumes bass voice is second to last part
         # changed this to divisions of FB part since spliced together Fb-bass part has different divisions
         divisions = int(parts[-1].xpath('measure[1]/attributes/divisions')[0].text)
-        print(divisions)
         bass = list(parts[-2].iter("measure"))
         continuo_measures = list(continuo.iter("measure"))
         for i in range(len(bass)):
@@ -86,7 +86,11 @@ def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretr
             etree.SubElement(fb_scorepart, "part-name").text = "Converted FB"
 
         part_list = root.xpath("./part-list")[0]
-        part_list.append(fb_scorepart)
+        continuo_scorepart = part_list[-1]
+        if remove_OG_accomp:
+            part_list.replace(continuo_scorepart, fb_scorepart)
+        else:
+            part_list.append(fb_scorepart)
 
 
     else:
@@ -95,7 +99,10 @@ def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretr
             fb.append(fb_only)
     
     if (return_whole_scoretree):
-        root.append(fb)
+        if remove_OG_accomp:
+            root.replace(continuo, fb)
+        else:
+            root.append(fb)
         # NOTE: scoretree returned if not doing music21 realisation is not "proper" MusicXML
         return score_tree
     else:
