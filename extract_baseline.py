@@ -189,12 +189,14 @@ def combine_two_parts(continuo: Element, bass: Element, divisions: int) -> Eleme
     bass_children = bass.xpath("./*")
     bass_child: Element = bass_children[0]
     temp_fb = []
+    continued_FB = None
 
     # assuming bass and continuo have same notes continuo will always be equal or longer due to also having FB too 
     for child in continuo_children:
         if (child.tag == "figured-bass"):
             # 2D array
-            temp_fb.append(turn_FBxml_into_lyrics(child))
+            (lyrics, continued_FB) = turn_FBxml_into_lyrics(child, continued_FB)
+            temp_fb.append(lyrics)
         elif (child.tag == "note"):
             # advances bass to the next <note>. anything that isn't <note> gets appended to FB measure
             while (bass_child is not None and bass_child.tag != "note"):
@@ -317,7 +319,7 @@ def create_dotted_note(note_value):
 # transforms into lyrics xml tag
 # if multiple have to add number attribute
 # if has duration element keep that but remove later ADD TO FIRST LYRIC ONLY (of numbered elements)
-def turn_FBxml_into_lyrics(FBxml: Element) -> []:
+def turn_FBxml_into_lyrics(FBxml: Element, continued_FB = None) -> []:
     lyrics = []
 
     figures = FBxml.xpath("./figure")
@@ -334,11 +336,19 @@ def turn_FBxml_into_lyrics(FBxml: Element) -> []:
         
         # add <figure-number> and modifier. 
         # NOTE: if has modifier and no number, assumed to be 3 by music21.
-        # TODO: confirm bach chorales doesn't use <extend>. also how to deal with backslash? just write it in and see what happens
+        # TODO:: how to deal with backslash? just write it in and see what happens
         # https://github.com/cuthbertLab/music21/blob/master/music21/figuredBass/notation.py read this for accepted notation
         fig_num = figure.findtext("figure-number")
         prefix = figure.findtext("prefix")
         suffix = figure.findtext("suffix")
+
+        extend = figure.xpath("./extend")
+        extend_type = None
+        if (len(extend) > 0):
+            extend:Element = extend[0]
+            extend_type = extend.get("type")
+            extend_type = extend_type.lower() if extend_type is not None else None
+
 
         fig_string = ""
         # turn prefix and suffix into equivalent m21 notations
@@ -362,10 +372,19 @@ def turn_FBxml_into_lyrics(FBxml: Element) -> []:
         fig_string_xml = etree.SubElement(lyric, "text")
         fig_string_xml.text = fig_string.strip()
 
+
+        # if has extend tag need to process it, treat as adding another FB under the type = stop or type = continue for lyrics
+        if extend_type == "start":
+            continued_FB = fig_string.strip()
+        elif extend_type =="continue":
+            fig_string_xml.text = continued_FB
+        elif extend_type=="stop":
+            fig_string_xml.text = continued_FB
+            continued_FB = None
         
         lyrics.append(lyric)
 
-    return lyrics
+    return (lyrics, continued_FB)
 
         
     # check if multiple <figure>s - these are converted to 1:1 <lyrics> with number appended.
