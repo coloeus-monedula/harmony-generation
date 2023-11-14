@@ -1,6 +1,6 @@
 from typing import Any
 import muspy.datasets as datasets
-from muspy import DatasetInfo, read_musicxml
+from muspy import DatasetInfo, Lyric, read_musicxml
 from muspy.music import Music
 
 
@@ -44,14 +44,40 @@ class ChoralesDataset(datasets.FolderDataset):
         return read_musicxml(filename)
     
     # adds the rest of the figured bass lyrics to the bassline
+    # can't rely on muspy's lyrics - seems to be a bug in there that sometimes causes duplication so we have to do it ourselves :/
     def complete_FB_lyrics(self, music21_lyrics: zip, filename):
         muspy_obj = self.get_by_filename(filename)
-        # muspy has the lyrics but only the first lyric obj - add the others in there
-        # iterate tuple, check inside for tuple length etc
+        print(muspy_obj.resolution)
+        muspy_lyrics = muspy_obj.tracks[-1].lyrics
+
+        muspy_i = 0
+        print(len(muspy_lyrics))
+        filtered = [tup for tup in music21_lyrics if tup[0] is not None]
+        print(len(filtered))
+
+        if (len(filtered) != len(muspy_lyrics)):
+            raise Exception("Muspy and Music21 lyric list are not equal length")
+
+        for el in filtered:
+            first, *others = el
+            # print(first, others)
+
+            single_lyric: Lyric = muspy_lyrics[muspy_i]
+            lyric_str: str = single_lyric.lyric.strip()
+
+            if (first !=lyric_str):
+                print("lyrics are not equal value", first, lyric_str)
+
+            for val in others:
+                if val is not None:
+                    lyric_str+=val.text.strip()
+
+            single_lyric.lyric = lyric_str
+
+            muspy_i+=1
 
    
 
-        pass
 
 
 

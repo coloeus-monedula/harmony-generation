@@ -127,6 +127,9 @@ def add_FB_to_muspy_dataset(converted_folder):
         music21_obj = converter.parseFile(f)
         lyrics = music21_obj.parts[-1].lyrics()
 
+        if lyrics == None:
+            raise ValueError("FB part has no lyrics")
+
         # NOTE: if zip can't do None objects may show up with error if any of the keys are None
         print(f) #pass along f as filename
         key_num = len(lyrics.keys())
@@ -146,6 +149,11 @@ def add_FB_to_muspy_dataset(converted_folder):
     return chorales
 
 def tokenise_FB():
+    tokeniser: {
+        None:150,
+
+    }
+
     pass
 
 
