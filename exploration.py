@@ -46,3 +46,16 @@ piece.flatten().lyrics()
 # figured bass notation is stored seperately?? maybe the baseline needs to be bespoke programmed?
 
 # https://github.com/Boffl/FiguredBass/tree/main for 18th century harmonisation rules
+
+
+import muspy, music21
+
+file = "added_FB/BWV_30.06_FB.musicxml"
+mp= muspy.read_musicxml(file)
+muspy_l = mp.tracks[-1].lyrics
+
+m21 = music21.converter.parseFile(file)
+lyrics = m21.parts[-1].lyrics()
+
+zipped = zip(lyrics.get(1), lyrics.get(2))
+filtered = [tup for tup in zipped if tup[0] is not None]

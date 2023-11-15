@@ -1,10 +1,17 @@
 import glob
 from os import path, makedirs
+
+from muspy import Music
 from extract_baseline import extract_FB
 from lxml import etree
-from music21 import converter, stream, chord, musicxml
+from music21 import converter, stream, chord, note as m21_note
 from local_datasets import ChoralesDataset
 from torch.utils.data import DataLoader, TensorDataset
+import numpy as np
+np.set_printoptions(threshold=np.inf)
+
+
+
 
 # music21 combines the two parts using chordify, takes the top layer of notes if there's a chord
 # then export to musicxml, open and grab the part in xml, replace where bass is in original score
@@ -110,7 +117,8 @@ def add_FB_to_scores(in_folder, out_folder, verbose):
     if verbose:
         print(invalid_num,"/", len(files),"files were invalid")
 
-
+# filename - lyrics object
+m21_FB = {}
 
 # folder is path to converted FB xml
 def add_FB_to_muspy_dataset(converted_folder):
@@ -120,35 +128,41 @@ def add_FB_to_muspy_dataset(converted_folder):
     chorales = ChoralesDataset(converted_folder)
     # print(first.tracks[-1].lyrics)
 
-    # dataset = chorales.to_pytorch_dataset(representation="pianoroll")
+
+    # dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll)
+    # print(dataset[1])
     # then put into dataloader?
 
-    for f in files:
-        music21_obj = converter.parseFile(f)
-        lyrics = music21_obj.parts[-1].lyrics()
+    # # TODO: GET RID OF THIS, WE DON'T NEED IT
+    # for f in files:
+    #     music21_obj = converter.parseFile(f)
+    #     lyrics = music21_obj.parts[-1].lyrics()
 
-        if lyrics == None:
-            raise ValueError("FB part has no lyrics")
+    #     if lyrics == None:
+    #         raise ValueError("FB part has no lyrics")
 
-        # NOTE: if zip can't do None objects may show up with error if any of the keys are None
-        print(f) #pass along f as filename
-        key_num = len(lyrics.keys())
-        if key_num == 3:
-            zipped = zip(lyrics.get(1), lyrics.get(2), lyrics.get(3))
-        elif key_num == 2:
-            zipped = zip(lyrics.get(1), lyrics.get(2))
-        elif key_num == 1:
-            zipped = zip(lyrics.get(1))
-        else:
-            print ("Error: lyric keys number is ", key_num, ", defaulting to zipping 1")
-            zipped = zip(lyrics.get(1))
+    #     # NOTE: if zip can't do None objects may show up with error if any of the keys are None
+    #     print(path.basename(f)) #pass along f as filename
+    #     key_num = len(lyrics.keys())
+    #     if key_num == 3:
+    #         zipped = zip(lyrics.get(1), lyrics.get(2), lyrics.get(3))
+    #     elif key_num == 2:
+    #         zipped = zip(lyrics.get(1), lyrics.get(2))
+    #     elif key_num == 1:
+    #         zipped = zip(lyrics.get(1))
+    #     else:
+    #         print ("Error: lyric keys number is ", key_num, ", defaulting to zipping 1")
+    #         zipped = zip(lyrics.get(1))
 
-        
-        chorales.complete_FB_lyrics(zipped, f)
+    #     # this doesn't work due to muspy bug
+    #     # chorales.complete_FB_lyrics(zipped, f)
+    #     m21_FB[f] = zipped
 
     return chorales
 
-def tokenise_FB():
+
+# gets a list of Lyrics
+def tokenise_FB(lyrics: list[m21_note.Lyric]):
     tokeniser: {
         None:150,
 
@@ -157,9 +171,37 @@ def tokenise_FB():
     pass
 
 
-# factory method to call, uses pianoroll conversion inside but also adds on encoded FB using tokenise_FB
-def FB_and_pianoroll():
-    pass
+
+
+# factory method to call, uses pianoroll conversion inside but also adds on encoded FB using tokenise_FB and ignores velocity
+
+# TODO: READ MUSIC21 HERE -> GET LAST FB PART 
+# TODO: get muspy resolution - shows how many timesteps per quarter note. .quarterLength for m21 objects show how many quarter note lengths the Note is. do float(note * resolution) to get timesteps
+#  for all notes in part:
+# get duration of note in muspy timesteps and see if there is FB under it
+# if no FB: encode as "None" value for that duration of timesteps
+# if there is, tokenise the lyrics, return value (with default being another val eg. 180)
+# results in array of length timesteps
+# then: zip() tracks and FB together (check they first have same length) - use the encode notes func to init array. position is s/a/t/b/accomp/fb and not note.pitch however, and value is pitch
+# one "internal" array for every timestep 
+# need to check fb timestep legnth is equal to the others
+# NOTE: CAN'T USE MUSPY PIANOROLL FORMAT, make our own with pitch numbers instead - https://github.com/ageron/handson-ml3/blob/main/15_processing_sequences_using_rnns_and_cnns.ipynb
+
+
+# for i in m21.parts[-1].recurse().notes:
+    # print(i.duration.quarterLength)
+    # print(i.lyrics)
+def FB_and_pianoroll(score: Music):
+    filename = score.metadata.source_filename
+    lyrics = m21_FB.get(filename)
+    if lyrics is None:
+        raise ValueError("No lyrics for ", filename)
+    
+
+    pianoroll = score.to_pianoroll_representation(encode_velocity=False)
+
+    return pianoroll.astype(int)
+
 
 
 # TODO: save both the pre-pytorch dataset and the post pytorch painorollls

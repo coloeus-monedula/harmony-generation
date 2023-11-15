@@ -12,7 +12,6 @@ class ChoralesDataset(datasets.FolderDataset):
     _info = DatasetInfo(license="Creative Commons Attribution 4.0 International", name="Bach Chorales Figured Bass (BCFB)", description="The complete 139 Johann Sebastian Bach chorales with figured bass encodings in MusicXML, **kern, and MEI formats, based on the Neue Bach Ausgabe (NBA) critical edition", homepage="10.5281/zenodo.5084913")
     _extension = "musicxml"
 
-    # TODO: add FB here or later?
     def __init__(self, root, convert=False, kind='json', n_jobs=1, ignore_exceptions=True, use_converted=None ):
         
         super().__init__(root, convert=convert, kind=kind, n_jobs=n_jobs, ignore_exceptions=ignore_exceptions, use_converted=use_converted )
@@ -44,7 +43,13 @@ class ChoralesDataset(datasets.FolderDataset):
         return read_musicxml(filename)
     
     # adds the rest of the figured bass lyrics to the bassline
-    # can't rely on muspy's lyrics - seems to be a bug in there that sometimes causes duplication so we have to do it ourselves :/
+    # can't rely on muspy's lyrics - seems to be a bug in there that sometimes causes duplication so we have to do it ourselves, and may as well do it in the tokenisation process :/
+
+    # TODO: get muspy resolution - shows how many timesteps per quarter note. .quarterLength for m21 objects show how many quarter note lengths the Note is. do float(note * resolution) to get timesteps
+    #  for all notes in part:
+    # get duration of note in muspy timesteps and add to counter
+    # if note 
+
     def complete_FB_lyrics(self, music21_lyrics: zip, filename):
         muspy_obj = self.get_by_filename(filename)
         print(muspy_obj.resolution)
@@ -66,7 +71,7 @@ class ChoralesDataset(datasets.FolderDataset):
             lyric_str: str = single_lyric.lyric.strip()
 
             if (first !=lyric_str):
-                print("lyrics are not equal value", first, lyric_str)
+                print("Warning: lyrics are not equal value", first, lyric_str)
 
             for val in others:
                 if val is not None:
