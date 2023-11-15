@@ -118,7 +118,7 @@ def add_FB_to_scores(in_folder, out_folder, verbose):
         print(invalid_num,"/", len(files),"files were invalid")
 
 # filename - lyrics object
-m21_FB = {}
+m21_lyrics_folder = ""
 
 # folder is path to converted FB xml
 def add_FB_to_muspy_dataset(converted_folder):
@@ -129,49 +129,21 @@ def add_FB_to_muspy_dataset(converted_folder):
     # print(first.tracks[-1].lyrics)
 
 
-    # dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll)
-    # print(dataset[1])
-    # then put into dataloader?
-
-    # # TODO: GET RID OF THIS, WE DON'T NEED IT
-    # for f in files:
-    #     music21_obj = converter.parseFile(f)
-    #     lyrics = music21_obj.parts[-1].lyrics()
-
-    #     if lyrics == None:
-    #         raise ValueError("FB part has no lyrics")
-
-    #     # NOTE: if zip can't do None objects may show up with error if any of the keys are None
-    #     print(path.basename(f)) #pass along f as filename
-    #     key_num = len(lyrics.keys())
-    #     if key_num == 3:
-    #         zipped = zip(lyrics.get(1), lyrics.get(2), lyrics.get(3))
-    #     elif key_num == 2:
-    #         zipped = zip(lyrics.get(1), lyrics.get(2))
-    #     elif key_num == 1:
-    #         zipped = zip(lyrics.get(1))
-    #     else:
-    #         print ("Error: lyric keys number is ", key_num, ", defaulting to zipping 1")
-    #         zipped = zip(lyrics.get(1))
-
-    #     # this doesn't work due to muspy bug
-    #     # chorales.complete_FB_lyrics(zipped, f)
-    #     m21_FB[f] = zipped
-
+    dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll)
+    print(chorales[0].metadata.source_filename)
+    print(dataset[0])
     return chorales
 
 
 # gets a list of Lyrics
 def tokenise_FB(lyrics: list[m21_note.Lyric]):
-    tokeniser: {
-        None:150,
-
-    }
-
-    pass
+    return 170
 
 
+tokeniser= {
+    "None":150,
 
+}
 
 # factory method to call, uses pianoroll conversion inside but also adds on encoded FB using tokenise_FB and ignores velocity
 
@@ -191,16 +163,48 @@ def tokenise_FB(lyrics: list[m21_note.Lyric]):
 # for i in m21.parts[-1].recurse().notes:
     # print(i.duration.quarterLength)
     # print(i.lyrics)
+
+
+# https://salu133445.github.io/muspy/_modules/muspy/outputs/pianoroll.html#to_pianoroll_representation
+# based off original pianoroll code
 def FB_and_pianoroll(score: Music):
     filename = score.metadata.source_filename
-    lyrics = m21_FB.get(filename)
-    if lyrics is None:
-        raise ValueError("No lyrics for ", filename)
-    
+    resolution = score.resolution
 
-    pianoroll = score.to_pianoroll_representation(encode_velocity=False)
+    m21 = converter.parseFile(m21_lyrics_folder+"/"+filename)
+    fb = m21.parts[-1]
 
-    return pianoroll.astype(int)
+    fb_length = int(fb.duration.quarterLength * resolution)
+    # array specification follows pianoroll representation spec
+    # NOTE: do we NEED length+1? is length +1 just so the last bit is a bar of silence?
+    fb_array = np.full(fb_length+1, tokeniser.get("None"), np.uint8)
+
+    # last bar of silence, won't have default FB so make 0
+    fb_array[-1] = 0
+    fb_timestep = 0
+
+    for el in fb.recurse().notes:
+        # find equivalent in timesteps
+        duration = int(el.duration.quarterLength * resolution)
+        lyrics = el.lyrics
+        if len(lyrics) != 0:
+            token = tokenise_FB(lyrics)
+            fb_array[fb_timestep: fb_timestep+duration] = token
+
+        fb_timestep+=duration
+
+
+    # convert the rest of the notes into pitches
+    pianoroll = np.zeros((fb_length+1, len(score.tracks) + 1), np.uint8)
+    for track_num in range(len(score.tracks)):
+        notes = score.tracks[track_num].notes
+        for note in notes:
+            pianoroll[note.time:note.end, track_num] = note.pitch
+
+
+    # add FB
+    pianoroll[:,-1] = fb_array
+    return pianoroll
 
 
 
@@ -214,6 +218,8 @@ def main():
     in_folder = "chorales/FB_source/musicXML_master"
     out_folder = "added_FB"
     # add_FB_to_scores(in_folder, out_folder, verbose=True)
+    global m21_lyrics_folder
+    m21_lyrics_folder = out_folder
 
     add_FB_to_muspy_dataset(out_folder)
 
