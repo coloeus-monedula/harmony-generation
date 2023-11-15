@@ -121,7 +121,7 @@ def add_FB_to_scores(in_folder, out_folder, verbose):
 m21_lyrics_folder = ""
 
 # folder is path to converted FB xml
-def add_FB_to_muspy_dataset(converted_folder):
+def convert_to_pytorch_dataset(converted_folder, pytorch_folder):
     folder_glob = path.join(converted_folder, "*.musicxml")
     files = glob.glob(folder_glob)
 
@@ -132,16 +132,23 @@ def add_FB_to_muspy_dataset(converted_folder):
     dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll)
     print(chorales[0].metadata.source_filename)
     print(dataset[0])
+
+    # TODO: save pytorch dataset as numbers
     return chorales
 
 
 # gets a list of Lyrics
 def tokenise_FB(lyrics: list[m21_note.Lyric]):
-    return 170
+    fb_string = ""
+    for lyric in lyrics:
+        fb_string+=lyric.text.strip()
+
+    return tokeniser.get(fb_string, tokeniser.get("Unknown"))
 
 
 tokeniser= {
     "None":150,
+    "Unknown": 180
 
 }
 
@@ -158,12 +165,6 @@ tokeniser= {
 # one "internal" array for every timestep 
 # need to check fb timestep legnth is equal to the others
 # NOTE: CAN'T USE MUSPY PIANOROLL FORMAT, make our own with pitch numbers instead - https://github.com/ageron/handson-ml3/blob/main/15_processing_sequences_using_rnns_and_cnns.ipynb
-
-
-# for i in m21.parts[-1].recurse().notes:
-    # print(i.duration.quarterLength)
-    # print(i.lyrics)
-
 
 # https://salu133445.github.io/muspy/_modules/muspy/outputs/pianoroll.html#to_pianoroll_representation
 # based off original pianoroll code
@@ -208,20 +209,16 @@ def FB_and_pianoroll(score: Music):
 
 
 
-# TODO: save both the pre-pytorch dataset and the post pytorch painorollls
-
-def convert_to_pytorch_dataset(chorales: ChoralesDataset, pytorch_folder):
-    pass
-
 
 def main():
     in_folder = "chorales/FB_source/musicXML_master"
     out_folder = "added_FB"
+    pytorch_folder = "preprocessed"
     # add_FB_to_scores(in_folder, out_folder, verbose=True)
     global m21_lyrics_folder
     m21_lyrics_folder = out_folder
 
-    add_FB_to_muspy_dataset(out_folder)
+    convert_to_pytorch_dataset(out_folder, pytorch_folder)
 
     # file = "./chorales/FB_source/musicXML_master/BWV_248.59_FB.musicxml"
     # combine_bassvoice_accomp(file)
