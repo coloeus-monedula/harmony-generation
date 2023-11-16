@@ -20,6 +20,7 @@ import math
 # modifier information taken from https://web.mit.edu/music21/doc/moduleReference/moduleFiguredBassNotation.html
 # only accepts flats, sharps, naturals, double flats and double sharps
 # NOTE: dataset encodes forward slash = lowered intervals. backslash = raised intervals according to corresponding paper
+# NOTE: cross appears to be allowed as a suffix but will become prefixed - translate to sharp instead if realisation will be affected by that?
 XMLToFBModifiers = {
     'sharp': '#',
     'flat': 'b',

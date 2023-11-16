@@ -8,6 +8,7 @@ from music21 import converter, stream, chord, note as m21_note
 from local_datasets import ChoralesDataset
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
+from tokeniser import tokeniser
 np.set_printoptions(threshold=np.inf)
 
 
@@ -121,11 +122,11 @@ def add_FB_to_scores(in_folder, out_folder, verbose):
 m21_lyrics_folder = ""
 
 # folder is path to converted FB xml
-def convert_to_pytorch_dataset(converted_folder, pytorch_folder):
-    folder_glob = path.join(converted_folder, "*.musicxml")
-    files = glob.glob(folder_glob)
+def convert_to_pytorch_dataset(original_folder, converted_folder, pytorch_folder):
 
-    chorales = ChoralesDataset(converted_folder)
+    # TODO: change this to original scores since we don't need to read lyrics into muspy obj anymore
+    # TODO: though with how the dataset is encoded in numbers it encodes pitch but not duration of a single note, so does it matter?
+    chorales = ChoralesDataset(original_folder)
     # print(first.tracks[-1].lyrics)
 
 
@@ -146,11 +147,6 @@ def tokenise_FB(lyrics: list[m21_note.Lyric]):
     return tokeniser.get(fb_string, tokeniser.get("Unknown"))
 
 
-tokeniser= {
-    "None":150,
-    "Unknown": 180
-
-}
 
 # factory method to call, uses pianoroll conversion inside but also adds on encoded FB using tokenise_FB and ignores velocity
 
@@ -218,7 +214,7 @@ def main():
     global m21_lyrics_folder
     m21_lyrics_folder = out_folder
 
-    convert_to_pytorch_dataset(out_folder, pytorch_folder)
+    convert_to_pytorch_dataset(in_folder, out_folder, pytorch_folder)
 
     # file = "./chorales/FB_source/musicXML_master/BWV_248.59_FB.musicxml"
     # combine_bassvoice_accomp(file)
