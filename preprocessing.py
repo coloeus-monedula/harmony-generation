@@ -7,6 +7,7 @@ from lxml import etree
 from music21 import converter, stream, chord, note as m21_note
 from local_datasets import ChoralesDataset
 from torch.utils.data import DataLoader, TensorDataset
+import torch
 import numpy as np
 from tokeniser import tokeniser
 np.set_printoptions(threshold=np.inf)
@@ -122,7 +123,7 @@ def add_FB_to_scores(in_folder, out_folder, verbose):
 m21_lyrics_folder = ""
 
 # folder is path to converted FB xml
-def convert_to_pytorch_dataset(original_folder, converted_folder, pytorch_folder):
+def convert_to_pytorch_dataset(original_folder, torch_save):
 
     # TODO: change this to original scores since we don't need to read lyrics into muspy obj anymore
     # TODO: though with how the dataset is encoded in numbers it encodes pitch but not duration of a single note, so does it matter?
@@ -131,10 +132,10 @@ def convert_to_pytorch_dataset(original_folder, converted_folder, pytorch_folder
 
 
     dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll)
-    print(chorales[0].metadata.source_filename)
-    print(dataset[0])
+    # print(chorales[0].metadata.source_filename)
+    # print(dataset[0])
 
-    # TODO: save pytorch dataset as numbers
+    torch.save(dataset, torch_save)
     return chorales
 
 
@@ -201,7 +202,8 @@ def FB_and_pianoroll(score: Music):
 
     # add FB
     pianoroll[:,-1] = fb_array
-    return pianoroll
+
+    return torch.from_numpy(pianoroll)
 
 
 
@@ -209,12 +211,12 @@ def FB_and_pianoroll(score: Music):
 def main():
     in_folder = "chorales/FB_source/musicXML_master"
     out_folder = "added_FB"
-    pytorch_folder = "preprocessed"
+    torch_save = "preprocessed.pt"
     # add_FB_to_scores(in_folder, out_folder, verbose=True)
     global m21_lyrics_folder
     m21_lyrics_folder = out_folder
 
-    convert_to_pytorch_dataset(in_folder, out_folder, pytorch_folder)
+    convert_to_pytorch_dataset(in_folder, torch_save)
 
     # file = "./chorales/FB_source/musicXML_master/BWV_248.59_FB.musicxml"
     # combine_bassvoice_accomp(file)
