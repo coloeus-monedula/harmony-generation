@@ -2,19 +2,30 @@ from typing import Any
 import muspy.datasets as datasets
 from muspy import DatasetInfo, Lyric, read_musicxml
 from muspy.music import Music
+from torch.utils.data import Dataset
+
+
+class PytorchChoralesDataset(Dataset):
+    resolution = 0
+
+    # def __init__
+
+
 
 
 # NOTE
 # muspy.FolderDataset.converted_exists() depends solely on a special file named .muspy.success in the folder {root}/_converted/, which serves as an indicator for the existence and integrity of the converted dataset. 
 # If the converted dataset is built by muspy.FolderDataset.convert(), the .muspy.success file will be created as well. 
 # If the converted dataset is created manually, make sure to create the .muspy.success file in the folder {root}/_converted/ to prevent errors.
-class ChoralesDataset(datasets.FolderDataset):
+class MuspyChoralesDataset(datasets.FolderDataset):
     _info = DatasetInfo(license="Creative Commons Attribution 4.0 International", name="Bach Chorales Figured Bass (BCFB)", description="The complete 139 Johann Sebastian Bach chorales with figured bass encodings in MusicXML, **kern, and MEI formats, based on the Neue Bach Ausgabe (NBA) critical edition", homepage="10.5281/zenodo.5084913")
     _extension = "musicxml"
+    resolution = 0
 
-    def __init__(self, root, convert=False, kind='json', n_jobs=1, ignore_exceptions=True, use_converted=None ):
+    def __init__(self, root, resolution, convert=False, kind='json', n_jobs=1, ignore_exceptions=True, use_converted=None ):
         
         super().__init__(root, convert=convert, kind=kind, n_jobs=n_jobs, ignore_exceptions=ignore_exceptions, use_converted=use_converted )
+        self.resolution = resolution
 
 
     # # should return the i-th data sample as a muspy.Music object
@@ -40,7 +51,7 @@ class ChoralesDataset(datasets.FolderDataset):
 
 
     def read(self, filename: Any) -> Music:
-        return read_musicxml(filename)
+        return read_musicxml(filename, resolution=self.resolution)
     
     # adds the rest of the figured bass lyrics to the bassline
     # can't rely on muspy's lyrics - seems to be a bug in there that sometimes causes duplication so we have to do it ourselves, and may as well do it in the tokenisation process :/

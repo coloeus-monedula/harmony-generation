@@ -5,9 +5,10 @@ from muspy import Music
 from extract_baseline import extract_FB
 from lxml import etree
 from music21 import converter, stream, chord, note as m21_note
-from local_datasets import ChoralesDataset
+from local_datasets import MuspyChoralesDataset
 from torch.utils.data import DataLoader, TensorDataset
 import torch
+import shutil
 import numpy as np
 from tokeniser import tokeniser
 import dill
@@ -65,8 +66,6 @@ def combine_bassvoice_accomp(file, return_type = "tree"):
     file.write(etree.tostring(original, pretty_print=True))
     file.close()
 
-    # chords.show()
-    # pass
 
 # limiting the scores used to SATB + continuo bassline only
 # given a music21 score, checks that there are 5 parts and that four of them is voice
@@ -93,7 +92,7 @@ def check_score_format(file, verbose, format = "satb"):
     return True
 
 
-def add_FB_to_scores(in_folder, out_folder, verbose):
+def add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose):
     folder_glob = path.join(in_folder, "*.musicxml")
     files = glob.glob(folder_glob)
     invalid_num = 0
@@ -101,17 +100,24 @@ def add_FB_to_scores(in_folder, out_folder, verbose):
     if not path.exists(out_folder):
         makedirs(out_folder)
 
+    if not path.exists(filtered_folder):
+        makedirs(filtered_folder)
+
+
     for f in files:
         if check_score_format(f, verbose) == True:
-            # print("file: ", f)
+            # save to filtered folder
+            basename = path.basename(f)
+            filtered = path.join(filtered_folder, basename)
+            shutil.copy(f, filtered)
+
             added_FB = extract_FB(f, use_music21_realisation=True, return_whole_scoretree=True, remove_OG_accomp=True)
 
-            basename = path.basename(f)
-            filename = path.join(out_folder, basename)
+            # save added FB
+            added = path.join(out_folder, basename)
+            with open(added, "wb") as file:
+                file.write(etree.tostring(added_FB, pretty_print=True))
 
-            file = open(filename, "wb")
-            file.write(etree.tostring(added_FB, pretty_print=True))
-            file.close()
         else:
             if verbose:
                 print("Ruled out: ", f)
@@ -124,19 +130,31 @@ def add_FB_to_scores(in_folder, out_folder, verbose):
 m21_lyrics_folder = ""
 
 # folder is path to converted FB xml
-def convert_to_pytorch_dataset(original_folder, torch_save):
+# resolution = how many notes per crotchet - goes up to hemisemiquavers by default
+def convert_to_pytorch_dataset(filtered_folder, torch_file, resolution):
 
     # TODO: change this to original scores since we don't need to read lyrics into muspy obj anymore
     # TODO: though with how the dataset is encoded in numbers it encodes pitch but not duration of a single note, so does it matter?
-    chorales = ChoralesDataset(original_folder)
+    chorales = MuspyChoralesDataset(filtered_folder, resolution)
     # print(first.tracks[-1].lyrics)
 
 
     dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll)
-    # print(chorales[0].metadata.source_filename)
-    # print(dataset[0])
+    dataset_list: dict[str, TensorDataset] = {}
+    for i in range(len(dataset)):
+        filename = chorales[i].metadata.source_filename
+        tensor = dataset[i]
+        dataset_list[filename] = tensor
 
-    torch.save(dataset, torch_save, pickle_module=dill)
+
+    # for 
+    # print(chorales[0].metadata.source_filename)
+    # tDataset = TensorDataset(dataset.dataset)
+    
+    # print(dataset.__class__)
+    # https://stackoverflow.com/questions/68617340/pytorch-best-practice-to-save-big-list-of-tensors or save tensors individually?
+    # for 
+    torch.save(dataset_list, torch_file)
     return chorales
 
 
@@ -211,13 +229,17 @@ def FB_and_pianoroll(score: Music):
 
 def main():
     in_folder = "chorales/FB_source/musicXML_master"
+    # original scores but without ineligible scores - use for muspy dataset
+    filtered_folder = "filtered"
     out_folder = "added_FB"
     torch_save = "preprocessed.pt"
-    # add_FB_to_scores(in_folder, out_folder, verbose=True)
+    resolution = 8
+    # add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
+
     global m21_lyrics_folder
     m21_lyrics_folder = out_folder
 
-    convert_to_pytorch_dataset(in_folder, torch_save)
+    convert_to_pytorch_dataset(filtered_folder, torch_save, resolution)
 
     # file = "./chorales/FB_source/musicXML_master/BWV_248.59_FB.musicxml"
     # combine_bassvoice_accomp(file)
