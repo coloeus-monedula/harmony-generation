@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import torch
 import numpy as np
 from tokeniser import tokeniser
+import dill
 np.set_printoptions(threshold=np.inf)
 
 
@@ -135,7 +136,7 @@ def convert_to_pytorch_dataset(original_folder, torch_save):
     # print(chorales[0].metadata.source_filename)
     # print(dataset[0])
 
-    torch.save(dataset, torch_save)
+    torch.save(dataset, torch_save, pickle_module=dill)
     return chorales
 
 
