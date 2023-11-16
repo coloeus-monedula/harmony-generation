@@ -5,13 +5,6 @@ from muspy.music import Music
 from torch.utils.data import Dataset
 
 
-class PytorchChoralesDataset(Dataset):
-    resolution = 0
-
-    # def __init__
-
-
-
 
 # NOTE
 # muspy.FolderDataset.converted_exists() depends solely on a special file named .muspy.success in the folder {root}/_converted/, which serves as an indicator for the existence and integrity of the converted dataset. 

@@ -9,8 +9,9 @@ lxml = "*"
 nltk = "*"
 matplotlib = "*"
 dill = "*"
-muspy = "*"
 torch = "*"
+muspy = "*"
+jsonschema = "*"
 
 [dev-packages]
 
