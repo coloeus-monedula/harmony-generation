@@ -125,7 +125,8 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64):
     return track
 
 def muspy_to_music21(filename, json_folder, show=False) -> Score:
-    muspy_obj = muspy.load_json(os.path(json_folder,filename+".json") )
+    filepath = path.join(json_folder,filename+".json")
+    muspy_obj = muspy.load_json(filepath)
     m21 = muspy.to_music21(muspy_obj)
 
     if (show):
@@ -133,24 +134,20 @@ def muspy_to_music21(filename, json_folder, show=False) -> Score:
 
     return m21
 
-def export_audio(filename, json_folder, sound_folder, extension = ".oga"):
-    muspy_obj = muspy.load_json(path.join(json_folder,filename+".json"))
-
+def export_audio(filename, json_folder, sound_folder):
+    # convert first to m21 so exported sound should sound the same as the realised FB
+    m21 = muspy_to_music21(filename, json_folder)
     if not path.exists(sound_folder):
         makedirs(sound_folder)
-
-    # filepath = path.join(sound_folder, filename+extension)
-    # muspy.write_audio(filepath, muspy_obj)
-
     filepath = path.join(sound_folder, filename+".midi")
-    muspy.write_midi(filepath, muspy_obj)
-    # have to convert to music21 first because write_audio() is buggy
-    # m21 = muspy_to_music21(filename, json_folder)
+
+    m21.write("midi", path=filepath)
 
     
 
 
 # TODO: if we're using data from scores, add info for time sig etc. from that? pass as an object param 
+# TODO: change how audio is exported wrt types of instruments bc realised instruments may not use the same as muspy
 def main():
     dataset: dict[str, Tensor] = torch.load("preprocessed.pt")
     items = list(dataset.items())
