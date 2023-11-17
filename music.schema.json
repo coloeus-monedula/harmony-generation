@@ -1,0 +1,317 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "MusPy JSON schema v0.2",
+    "description": "A simple, intuitive format for symbolic music",
+    "type": "object",
+    "properties": {
+        "metadata": {
+            "description": "Metadata",
+            "type": "object",
+            "properties": {
+                "schema_version": {
+                    "description": "Schema version",
+                    "type": "string"
+                },
+
+                "title": {
+                    "description": "Song title",
+                    "type": ["string", "null"]
+                },
+                "creators": {
+                    "description": "Creators of the song",
+                    "type": ["array", "null"],
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "copyright": {
+                    "description": "Copyright notice",
+                    "type": ["string", "null"]
+                },
+                "collection": {
+                    "description": "Name of the collection",
+                    "type": ["string", "null"]
+                },
+                "source_filename": {
+                    "description": "Name of the source file",
+                    "type": ["string", "null"]
+                },
+                "source_format": {
+                    "description": "Format of the source file",
+                    "type": ["string", "null"]
+                }
+            }
+        },
+        "resolution": {
+            "description": "Time steps per quarter note",
+            "type": "integer"
+        },
+        "tempos": {
+            "description": "Tempo changes",
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "time": {
+                        "description": "Start time of the tempo, in time steps",
+                        "type": "integer"
+                    },
+                    "qpm": {
+                        "description": "Tempo in qpm (quarters per minute)",
+                        "type": "number"
+                    }
+                },
+                "required": ["time", "qpm"]
+            }
+
+        },
+        "key_signatures": {
+            "description": "Key signature changes",
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "time": {
+                        "description": "Start time of the key signature, in time steps",
+                        "type": "integer"
+                    },
+                    "root": {
+                        "description": "Root (tonic) of the key signature",
+                        "type": "integer"
+                    },
+                    "mode": {
+                        "description": "Mode of the key signature",
+                        "type": "string"
+                    },
+                    "fifths":{
+                        "description": "Number of sharps or flats (positive numbers for sharps and negative numbers for flats)",
+                        "type": "integer"
+                    },
+                    "root_str": {
+                        "description": "Root of the key signature as a string",
+                        "type": "string"
+                    }
+                },
+                "required": ["time"]
+            }
+        },
+        "time_signatures": {
+            "description": "Time signature changes",
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "time": {
+                        "description": "Start time of the time signature, in time steps.",
+                        "type": "integer"
+                    },
+                    "numerator": {
+                        "description": "Numerator of the time signature",
+                        "type": "integer"
+                    },
+                    "denominator": {
+                        "description": "Denominator of the time signature",
+                        "type": "integer"
+                    }
+                },
+                "required": ["time"]
+            }
+        },
+        "barlines": {
+            "description": "Barlines",
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "time": {
+                        "description": "Time of the barline, in time steps",
+                        "type": "integer"
+                    }
+                },
+                "required": ["time"]
+            }
+        },
+        "beats": {
+            "description": "Beats",
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "time": {
+                        "description": "Time of the beat, in time steps",
+                        "type": "integer"
+                    }
+                },
+                "required": ["time"]
+            }
+        },
+        "lyrics": {
+            "description": "Global lyrics",
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "time": {
+                        "description": "Start time of the lyric, in time steps",
+                        "type": "integer"
+                    },
+                    "lyric": {
+                        "description": "Lyric (sentence, word, syllable, etc.)",
+                        "type": "string"
+                    }
+                },
+                "required": ["time", "lyric"]
+            }
+        },
+        "annotations": {
+            "description": "Global annotations",
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "time": {
+                        "description": "Start time of the annotation, in time steps",
+                        "type": "integer"
+                    },
+                    "annotation": {
+                        "description": "Annotation of any type"
+                    },
+                    "group": {
+                        "description": "Group name (for better organizing the annotations)",
+                        "type": ["string", "null"]
+                    }
+                },
+                "required": ["time", "annotation"]
+            }
+        },
+        "tracks": {
+            "description": "Tracks",
+            "type": ["array", "null"],
+            "items": {
+                "type": "object",
+                "properties": {
+                    "program": {
+                        "description": "Program number, according to General MIDI specification",
+                        "type": "integer"
+                    },
+                    "is_drum": {
+                        "description": "Whether it is a percussion track",
+                        "type": "boolean"
+                    },
+                    "name": {
+                        "description": "Track name",
+                        "type": ["string", "null"]
+                    },
+                    "notes": {
+                        "description": "Musical notes",
+                        "type": ["array", "null"],
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "time": {
+                                    "description": "Start time of the note, in time steps",
+                                    "type": "integer"
+                                },
+                                "pitch": {
+                                    "description": "Note pitch, as a MIDI note number",
+                                    "type": "integer"
+                                },
+                                "duration": {
+                                    "description": "Duration of the note, in time steps",
+                                    "type": "integer"
+                                },
+                                "velocity": {
+                                    "description": "Note velocity",
+                                    "type": "integer"
+                                },
+                                "pitch_str": {
+                                    "description": "Note pitch as a string (useful for distinguishing, e.g., C# and Db)",
+                                    "type": "integer"
+                                }
+                            },
+                            "required": ["time", "pitch", "duration", "velocity"]
+                        }
+                    },
+                    "chords": {
+                        "description": "Chords",
+                        "type": ["array", "null"],
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "time": {
+                                    "description": "Start time of the chord, in time steps",
+                                    "type": "integer"
+                                },
+                                "duration": {
+                                    "description": "Chord duration",
+                                    "type": "integer"
+                                },
+                                "pitches": {
+                                    "description": "Note pitches, as MIDI note numbers",
+                                    "type": ["array", "null"],
+                                    "items": {
+                                        "description": "Note pitch, as a MIDI note number",
+                                        "type": "integer"
+                                    }
+                                },
+                                "velocity": {
+                                    "description": "Chord velocity",
+                                    "type": "integer"
+                                },
+                                "pitches_str": {
+                                    "description": "Note pitches as strings (useful for distinguishing, e.g., C# and Db)",
+                                    "type": ["array", "null"],
+                                    "items": {
+                                        "description": "Note pitch as a string",
+                                        "type": "integer"
+                                    }
+                                }
+                            },
+                            "required": ["time", "pitch", "duration", "velocity"]
+                        }
+                    },
+                    "lyrics": {
+                        "description": "Track-specific lyrics",
+                        "type": ["array", "null"],
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "time": {
+                                    "description": "Start time of the lyric, in time steps",
+                                    "type": "integer"
+                                },
+                                "lyric": {
+                                    "description": "Lyric (sentence, word, syllable, etc.)",
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["time", "lyric"]
+                        }
+                    },
+                    "annotations": {
+                        "description": "Track-specific annotations",
+                        "type": "array",
+                        "items": {
+                            "type": ["object", "null"],
+                            "properties": {
+                                "time": {
+                                    "description": "Start time of the annotation, in time steps",
+                                    "type": "integer"
+                                },
+                                "annotation": {
+                                    "description": "Annotation of any type"
+                                },
+                                "group": {
+                                    "description": "Group name (for better organizing the annotations)",
+                                    "type": ["string", "null"]
+                                }
+                            },
+                            "required": ["time", "annotation"]
+                        }
+                    }
+                },
+                "required": ["program", "is_drum"]
+            }
+        }
+    }
+}

@@ -1,12 +1,23 @@
-from muspy.schemas.utils import validate_json
-from jsonschema.exceptions import ValidationError
+from jsonschema.exceptions import ValidationError, SchemaError
+import jsonschema
 import json
 from torch import Tensor
 import torch
 from os import path, makedirs
 import os
+import muspy
+from music21.stream import Score
 
 null = None
+
+# have to do this since json.schema.path in muspy's validate func appears to be incorrect
+def validate_json(data):
+    schema_path = "music.schema.json"
+    with open(schema_path, encoding="utf-8") as f:
+        schema = json.load(f)
+
+    jsonschema.validate(data, schema)
+
 
 # https://www.midi.org/specifications-old/item/gm-level-1-sound-set 
 # program midi uses above spec 
@@ -15,7 +26,7 @@ def tensor_to_json(tensor: Tensor, folder, filename, resolution = 8, program_mid
 
     # TODO: change generated piece to piece the FB is taken from?
     metadata = {
-        "schema_version": 0.0,
+        "schema_version": "0.0",
         "title": "Generated Piece",
         "copyright": null,
         "collection":"Generated Dataset",
@@ -44,19 +55,24 @@ def tensor_to_json(tensor: Tensor, folder, filename, resolution = 8, program_mid
     data["tracks"] = tracks
 
 
-    if not path.exists(folder):
-        makedirs(folder)
-
-    filepath = path.join(folder, filename)
-    with open(filepath, "w") as f:
-        json.dump(data, f, indent=6)
-
-    
     try:
-        validate_json(filepath)
-    except(ValidationError):
-        os.remove(filepath)
-        raise ValidationError("Invalid JSON - file deleted")
+        validate_json(data)
+
+        if not path.exists(folder):
+            makedirs(folder)
+
+        filepath = path.join(folder, filename)
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=6)
+
+    except ValidationError as vE:
+        print("Validation error:")
+        print(vE)
+        raise ValidationError
+    except SchemaError as sE:
+        print("Schema error:")
+        print(sE)
+        raise SchemaError
     
     # return data
 
@@ -84,22 +100,23 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64):
     current_duration = 0
     for pitch in part:
         if (pitch.item() != current_pitch):
-            # save previous pitch to list
-            note = {
-                "time": time,
-                "duration": current_duration,
-                "pitch": current_pitch,
-                "velocity": velocity
-            }
+            # save previous pitch to list, if not silence / pitch 0
 
-            notes.append(note)
+            if (current_pitch != 0):
+                note = {
+                    "time": time,
+                    "duration": current_duration,
+                    "pitch": current_pitch,
+                    "velocity": velocity
+                }
+
+                notes.append(note)
 
             # change to new pitch, increment timestep counter
             current_pitch = pitch.item()
             time +=current_duration
             # start at 1 since being in the list means that pitch will at the very least have 1 timestep duration
             current_duration = 1
-            pass
         else:
             current_duration+=1  
                   
@@ -107,14 +124,44 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64):
     track["notes"] = notes
     return track
 
+def muspy_to_music21(filename, json_folder, show=False) -> Score:
+    muspy_obj = muspy.load_json(os.path(json_folder,filename+".json") )
+    m21 = muspy.to_music21(muspy_obj)
+
+    if (show):
+        m21.show()
+
+    return m21
+
+def export_audio(filename, json_folder, sound_folder, extension = ".oga"):
+    muspy_obj = muspy.load_json(path.join(json_folder,filename+".json"))
+
+    if not path.exists(sound_folder):
+        makedirs(sound_folder)
+
+    # filepath = path.join(sound_folder, filename+extension)
+    # muspy.write_audio(filepath, muspy_obj)
+
+    filepath = path.join(sound_folder, filename+".midi")
+    muspy.write_midi(filepath, muspy_obj)
+    # have to convert to music21 first because write_audio() is buggy
+    # m21 = muspy_to_music21(filename, json_folder)
+
+    
+
+
 # TODO: if we're using data from scores, add info for time sig etc. from that? pass as an object param 
 def main():
     dataset: dict[str, Tensor] = torch.load("preprocessed.pt")
     items = list(dataset.items())
-    tensor_to_json(items[0][1], "generated_JSON", items[0][0])
-    # test using preprocessed stuff
-    pass
 
+    # remove extension
+    filename = path.splitext(items[0][0])[0]
+
+    # tensor_to_json(items[0][1], "generated_JSON", filename+".json")
+    # test using preprocessed stuff
+
+    export_audio(filename, "generated_JSON", "audio")
 if __name__ == "__main__":
     main()
 
