@@ -3,6 +3,7 @@ import muspy.datasets as datasets
 from muspy import DatasetInfo, Lyric, read_musicxml
 from muspy.music import Music
 from torch.utils.data import Dataset
+import torch
 
 
 
@@ -87,6 +88,25 @@ class MuspyChoralesDataset(datasets.FolderDataset):
 
    
 
+class PytorchChoralesDataset(Dataset):
+    def __init__(self, pt_file):
+        self.chorales_dict: dict[str, torch.Tensor] = torch.load(pt_file)
 
+
+    def __len__(self):
+        return len(self.chorales_dict)
+    
+
+    def __getitem__(self, index) -> torch.Tensor:
+        chorales_list = list(self.chorales_dict.values())
+        return chorales_list[index]
+    
+
+    def get_by_filename(self, name) -> torch.Tensor:
+        tensor = self.chorales_dict.get(name)
+        if tensor is None:
+            raise ValueError("Tensor for ", name, "not found")
+        
+        return tensor
 
 

@@ -5,7 +5,7 @@ from muspy import Music
 from extract_baseline import extract_FB
 from lxml import etree
 from music21 import converter, stream, chord, note as m21_note
-from local_datasets import MuspyChoralesDataset
+from local_datasets import MuspyChoralesDataset, PytorchChoralesDataset
 from torch.utils.data import DataLoader, TensorDataset
 import torch
 import shutil
@@ -135,20 +135,18 @@ def convert_to_pytorch_dataset(filtered_folder, torch_file, resolution):
     # TODO: change this to original scores since we don't need to read lyrics into muspy obj anymore
     # TODO: though with how the dataset is encoded in numbers it encodes pitch but not duration of a single note, so does it matter?
     chorales = MuspyChoralesDataset(filtered_folder, resolution)
-    # print(first.tracks[-1].lyrics)
 
 
     dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll)
     dataset_list: dict[str, TensorDataset] = {}
+
+    # TODO: split into x and y bits here
+    # TODO: make structure dict but with (Tensor, Tensor) tuple 
+    # or just save as two separate files x_set and y_set
     for i in range(len(dataset)):
         filename = chorales[i].metadata.source_filename
         tensor = dataset[i]
         dataset_list[filename] = tensor
-
-
-    # for 
-    # print(chorales[0].metadata.source_filename)
-    # tDataset = TensorDataset(dataset.dataset)
     
     # print(dataset.__class__)
     # https://stackoverflow.com/questions/68617340/pytorch-best-practice-to-save-big-list-of-tensors or save tensors individually?
@@ -224,6 +222,17 @@ def FB_and_pianoroll(score: Music):
     return torch.from_numpy(pianoroll)
 
 
+
+def load_data(file):
+    dataset = PytorchChoralesDataset(file)
+    # how to split the lists?
+    # use random split
+
+
+    # TODO: load in preprocessed.pt
+    # pass into dataloaders
+    # return train dataloader, test dataloader
+    pass
 
 
 def main():
