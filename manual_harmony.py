@@ -202,10 +202,15 @@ def handle_anacrusis(part):
     # add rules true/false, maxpitch (default highest soprano pitch), all of the rule adjustments only if there isn't a --no-rules flag
 
 
-def export_audio(filename, score: stream.Score, sound_folder):
+def export_audio(filename, score: stream.Score, bass_voice, sound_folder):
     if not os.path.exists(sound_folder):
         os.makedirs(sound_folder)
     filepath = os.path.join(sound_folder, filename+".midi")
+
+    # since FB part is accompaniment, add on bass voice 
+    score.insert(-3, bass_voice)
+
+    score.show()
 
     # change to same instruments as predicted audio export
     for el in score.parts[-1].recurse():
@@ -331,7 +336,7 @@ def manual_parser():
 
 
     sound_name =os.path.splitext(args.file)[0]
-    export_audio(sound_name, realised, "./audio")
+    export_audio(sound_name, realised,voices["b"], "./audio")
 
     return score_objs
     # print(satb.get("s").show("text"))

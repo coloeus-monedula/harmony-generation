@@ -54,6 +54,8 @@ def main():
     # pickle.dump(returned, file)
     # file.close()
 
+    # TODO: predicted melody will also have additional accomp part - do we remove that for this ?
+
 
 
 if __name__ == "__main__":
