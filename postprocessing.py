@@ -7,6 +7,7 @@ from os import path, makedirs
 import os
 import muspy
 from music21.stream import Score
+from music21 import instrument
 
 null = None
 
@@ -21,7 +22,7 @@ def validate_json(data):
 
 # https://www.midi.org/specifications-old/item/gm-level-1-sound-set 
 # program midi uses above spec 
-def tensor_to_json(tensor: Tensor, folder, filename, resolution = 8, program_midi = 53,):
+def tensor_to_json(tensor: Tensor, folder, filename, resolution = 8, program_midi = 55):
     data = {}
 
     # TODO: change generated piece to piece the FB is taken from?
@@ -45,8 +46,8 @@ def tensor_to_json(tensor: Tensor, folder, filename, resolution = 8, program_mid
     for i in range(4):
         track = add_track(tensor[:,i], track_name.get(i), program_midi)
         tracks.append(track)
-    # church organ sound
-    accomp = add_track(tensor[:, 4], "Accompaniment", 20)
+    # reed organ sound
+    accomp = add_track(tensor[:, 4], "Accompaniment", 17)
     tracks.append(accomp)
 
 
@@ -135,13 +136,19 @@ def muspy_to_music21(filename, json_folder, show=False) -> Score:
     return m21
 
 def export_audio(filename, json_folder, sound_folder):
-    # convert first to m21 so exported sound should sound the same as the realised FB
     m21 = muspy_to_music21(filename, json_folder)
     if not path.exists(sound_folder):
         makedirs(sound_folder)
     filepath = path.join(sound_folder, filename+".midi")
 
-    m21.write("midi", path=filepath)
+    # convert first to m21 so exported sound can sound the same as the realised FB
+    for part in m21.parts:
+        part.insert(0, instrument.Choir())
+    for el in m21.parts[-1].recurse():
+        if 'Instrument' in el.classes:
+            el.activeSite.replace(el, instrument.Contrabass())
+
+    m21.write("midi", fp=filepath)
 
     
 

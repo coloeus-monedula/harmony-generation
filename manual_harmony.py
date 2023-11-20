@@ -75,7 +75,7 @@ def convert_music21(score_path, return_as_score = False):
 # def fb_realisation_harpsichord():
 
 
-def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_realisation = False):
+def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_realisation = False) -> stream.Score:
     bass_fb = voices["fb"]
     voices.pop("fb")
     fb = figuredBass.realizer.figuredBassFromStream(bass_fb)
@@ -202,6 +202,19 @@ def handle_anacrusis(part):
     # add rules true/false, maxpitch (default highest soprano pitch), all of the rule adjustments only if there isn't a --no-rules flag
 
 
+def export_audio(filename, score: stream.Score, sound_folder):
+    if not os.path.exists(sound_folder):
+        os.makedirs(sound_folder)
+    filepath = os.path.join(sound_folder, filename+".midi")
+
+    # change to same instruments as predicted audio export
+    for el in score.parts[-1].recurse():
+        if 'Instrument' in el.classes:
+            el.activeSite.replace(el, instrument.Contrabass())
+
+    score.write("midi", fp=filepath)
+
+
 
 def manual_parser():
     parser = argparse.ArgumentParser(description="Realise harmony for a SATB + intrument baseline Bach Chorale using Music21 figured bass harmony rules.")
@@ -315,7 +328,10 @@ def manual_parser():
     if args.save is not None:
         with open(args.save, "wb") as f:
             pickle.dump(score_objs, f)
-    
+
+
+    sound_name =os.path.splitext(args.file)[0]
+    export_audio(sound_name, realised, "./audio")
 
     return score_objs
     # print(satb.get("s").show("text"))
