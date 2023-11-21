@@ -138,20 +138,29 @@ def convert_to_pytorch_dataset(filtered_folder, torch_file, resolution):
 
 
     dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll)
-    dataset_list: dict[str, TensorDataset] = {}
+    dataset_x: dict[str, TensorDataset] = {}
+    dataset_y: dict[str, TensorDataset] = {}
 
     # TODO: split into x and y bits here
     # TODO: make structure dict but with (Tensor, Tensor) tuple 
     # or just save as two separate files x_set and y_set
     for i in range(len(dataset)):
         filename = chorales[i].metadata.source_filename
-        tensor = dataset[i]
-        dataset_list[filename] = tensor
+
+        # get the alto - bass voice part by itself
+        (tensor_x_start, tensor_y, tensor_x_fin) = torch.tensor_split(dataset[i],  (1, 4), dim=1)
+        tensor_x = torch.cat((tensor_x_start, tensor_x_fin), dim=1)
+
+        dataset_x[filename] = tensor_x
+        dataset_y[filename] = tensor_y
+
     
     # print(dataset.__class__)
     # https://stackoverflow.com/questions/68617340/pytorch-best-practice-to-save-big-list-of-tensors or save tensors individually?
     # for 
-    torch.save(dataset_list, torch_file)
+    torch.save(dataset_x, "x_"+torch_file)
+    torch.save(dataset_y, "y_"+torch_file)
+    
     return chorales
 
 
@@ -242,6 +251,7 @@ def main():
     out_folder = "added_FB"
     torch_save = "preprocessed.pt"
     resolution = 8
+
     # add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
 
     global m21_lyrics_folder
