@@ -5,7 +5,7 @@ from muspy import Music
 from extract_baseline import extract_FB
 from lxml import etree
 from music21 import converter, stream, chord, note as m21_note
-from local_datasets import MuspyChoralesDataset, PytorchChoralesDataset
+from local_datasets import MuspyChoralesDataset, PytorchChoralesDataset as Chorales, PytorchSplitChoralesDataset as SplitChorales
 from torch.utils.data import DataLoader, TensorDataset
 import torch
 import shutil
@@ -130,7 +130,7 @@ m21_lyrics_folder = ""
 
 # folder is path to converted FB xml
 # resolution = how many notes per crotchet - goes up to hemisemiquavers by default
-def convert_to_pytorch_dataset(filtered_folder, torch_file, resolution):
+def convert_to_pytorch_dataset(filtered_folder, torch_file, resolution, split):
 
     # TODO: change this to original scores since we don't need to read lyrics into muspy obj anymore
     # TODO: though with how the dataset is encoded in numbers it encodes pitch but not duration of a single note, so does it matter?
@@ -138,8 +138,7 @@ def convert_to_pytorch_dataset(filtered_folder, torch_file, resolution):
 
 
     dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll)
-    dataset_x: dict[str, TensorDataset] = {}
-    dataset_y: dict[str, TensorDataset] = {}
+    dataset_list: dict[str, TensorDataset] = {}
 
     # TODO: split into x and y bits here
     # TODO: make structure dict but with (Tensor, Tensor) tuple 
@@ -147,19 +146,21 @@ def convert_to_pytorch_dataset(filtered_folder, torch_file, resolution):
     for i in range(len(dataset)):
         filename = chorales[i].metadata.source_filename
 
-        # get the alto - bass voice part by itself
-        (tensor_x_start, tensor_y, tensor_x_fin) = torch.tensor_split(dataset[i],  (1, 4), dim=1)
-        tensor_x = torch.cat((tensor_x_start, tensor_x_fin), dim=1)
+        if split:
+            # get the alto - bass voice part by itself
+            (tensor_x_start, tensor_y, tensor_x_fin) = torch.tensor_split(dataset[i],  (1, 4), dim=1)
+            tensor_x = torch.cat((tensor_x_start, tensor_x_fin), dim=1)
 
-        dataset_x[filename] = tensor_x
-        dataset_y[filename] = tensor_y
+            dataset_list[filename] = (tensor_x, tensor_y)
+        else:
+            tensor = dataset[i]
+            dataset_list[filename] = tensor
 
     
     # print(dataset.__class__)
     # https://stackoverflow.com/questions/68617340/pytorch-best-practice-to-save-big-list-of-tensors or save tensors individually?
     # for 
-    torch.save(dataset_x, "x_"+torch_file)
-    torch.save(dataset_y, "y_"+torch_file)
+    torch.save(dataset_list, torch_file)
     
     return chorales
 
@@ -231,17 +232,22 @@ def FB_and_pianoroll(score: Music):
     return torch.from_numpy(pianoroll)
 
 
+# https://datascience.stackexchange.com/a/47249 ??
+# batch size can be whatever is divisible ig
+# each input is S,Acc,FB, each output is A,T,B,S+1,Acc+1,FB+1
+# hopefully it'll tell when each piece ends bc of the 000000
 
-def load_data(file):
-    dataset = PytorchChoralesDataset(file)
-    # how to split the lists?
-    # use random split
+# we don't wanna shuffle this i think?
 
+# TODO: do this in the RNN itself as we want to classify??
+def load_data(file, split, batch_size = 1):
 
-    # TODO: load in preprocessed.pt
-    # pass into dataloaders
-    # return train dataloader, test dataloader
-    pass
+    if split:
+        dataset = SplitChorales(file)
+    else:
+        dataset = Chorales(file)
+
+    # loader = DataLoader()
 
 
 def main():
@@ -257,7 +263,7 @@ def main():
     global m21_lyrics_folder
     m21_lyrics_folder = out_folder
 
-    convert_to_pytorch_dataset(filtered_folder, torch_save, resolution)
+    convert_to_pytorch_dataset(filtered_folder, torch_save, resolution, split=True)
 
     # file = "./chorales/FB_source/musicXML_master/BWV_248.59_FB.musicxml"
     # combine_bassvoice_accomp(file)

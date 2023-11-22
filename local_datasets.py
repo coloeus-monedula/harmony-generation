@@ -87,6 +87,26 @@ class MuspyChoralesDataset(datasets.FolderDataset):
             muspy_i+=1
 
    
+#    where x and y are split
+class PytorchSplitChoralesDataset(Dataset):
+    def __init__(self, pt_file) -> None:
+        self.chorales_dict: dict[str, (torch.Tensor, torch.Tensor)] = torch.load(pt_file)
+
+    def __len__(self) -> int:
+        return len(self.chorales_dict)
+    
+    def __getitem__(self, index) -> (torch.Tensor, torch.Tensor):
+        chorales_list = list(self.chorales_dict.values())
+        return chorales_list[index]
+    
+
+    def get_by_filename(self, name) -> (torch.Tensor, torch.Tensor):
+        tensor_tuple = self.chorales_dict.get(name)
+        if tensor_tuple is None:
+            raise ValueError("Tensor for ", name, "not found")
+        
+        return tensor_tuple
+
 
 class PytorchChoralesDataset(Dataset):
     def __init__(self, pt_file):
