@@ -32,11 +32,6 @@ else:
 #  use padding like in floydhub if batching
 
 
-# https://datascience.stackexchange.com/a/47249 ??
-# batch size can be whatever is divisible ig
-# each input is S,Acc,FB, each output is A,T,B,S+1,Acc+1,FB+1
-# hopefully it'll tell when each piece ends bc of the 000000
-
 
 # follows https://blog.floydhub.com/a-beginners-guide-on-recurrent-neural-networks-with-pytorch/
 class RNN(nn.Module):
@@ -67,6 +62,46 @@ class RNN(nn.Module):
         output = output.contiguous().view(-1, self.hidden_size)
         output = self.linear(output)
 
+        # add extra (batch) dimension to output
+        output = output[None,:,:]
+
+        return output, h_n
+
+    def init_hidden(self, batch_size):
+        # initialise the hidden state - makes a layers x batch size x hidden size sized tensor 
+        torch.zeros(self.n_layers, batch_size, self.hidden_size)
+
+
+
+class LSTM(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size, n_layers) -> None:
+        super(LSTM, self).__init__()
+
+        # dimensions for hidden layers
+        self.hidden_size = hidden_size
+        # number of RNN layers
+        self.n_layers = n_layers
+
+        # will be made up of n_layers of LSTM
+        # DataLoader does batch number first so switch to batch first
+        self.lstm = nn.LSTM(input_size, hidden_size, n_layers, batch_first=True)
+        # reshape to output 
+        self.linear = nn.Linear(hidden_size, output_size)
+
+
+    def forward(self, x):
+        batch_size = x.size(0)
+        h_n = self.init_hidden(batch_size)
+        
+
+        # final hidden state for each element in batch
+        output, h_n = self.lstm(x, h_n)
+
+        # make output stored in same block of memory
+        # fit to hidden_size dimensiions to pass through linear layer
+        output = output.contiguous().view(-1, self.hidden_size)
+        output = self.linear(output)
+
         # add extra (batch) dimension to output??
         output = output[None,:,:]
 
@@ -76,7 +111,6 @@ class RNN(nn.Module):
     def init_hidden(self, batch_size):
         # initialise the hidden state - makes a layers x batch size x hidden size sized tensor 
         torch.zeros(self.n_layers, batch_size, self.hidden_size)
-
 
 
 def generate_sequences(dataset:SplitChorales|Chorales, split:bool):
@@ -90,7 +124,7 @@ def time_since(since):
     secs -= mins * 60
     return '%dmins %dsecs' % (mins, secs)
 
-def train(model:RNN, loader:DataLoader, criterion:nn.CrossEntropyLoss, optimiser:torch.optim.Adam, hyperparameters):
+def train(model, loader:DataLoader, criterion:nn.CrossEntropyLoss, optimiser:torch.optim.Adam, hyperparameters):
 
     all_losses = []
     start = time.time()
@@ -137,14 +171,18 @@ def test():
     pass
 
 
-hyperparameters = {
+# hyperparams and params
+parameters = {
     "lr": 0.01,
     "n_epochs": 100,
     # measured in epoch numbers
     "plot_every" : 5,
     "print_every" : 10,
     "batch_size": 1, #if data not padded, this is the only one that can be done
-    "hidden_size": 3,
+    "hidden_size": 10,
+    "input_size" : 3,
+    "output_size": 6,
+    "n_layers" :1,
 }
 
 def main():
@@ -163,20 +201,20 @@ def main():
     else:
         dataset = Chorales(file)
 
-    loader = DataLoader(dataset, batch_size=hyperparameters["batch_size"])
+    loader = DataLoader(dataset, batch_size=parameters["batch_size"])
 
-    input_size = 3
-    output_size = 6
-    n_layers = 1
+    input_size = parameters["input_size"]
+    output_size = parameters["output_size"]
+    n_layers = parameters["n_layers"]
 
-    model = RNN(input_size, output_size, hyperparameters["hidden_size"], n_layers)
+    model = LSTM(input_size, output_size, parameters["hidden_size"], n_layers)
     model.to(device)
 
     # loss and optimiser
     criterion = nn.CrossEntropyLoss()
-    optimiser = torch.optim.Adam(model.parameters(), lr = hyperparameters["lr"])
+    optimiser = torch.optim.Adam(model.parameters(), lr = parameters["lr"])
 
-    train(model, loader, criterion, optimiser, hyperparameters)
+    train(model, loader, criterion, optimiser, parameters)
 
 
 
