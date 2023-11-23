@@ -1,4 +1,4 @@
-import glob
+
 from os import path, makedirs
 
 from muspy import Music
@@ -7,9 +7,11 @@ from lxml import etree
 from music21 import converter, stream, chord, note as m21_note
 from local_datasets import MuspyChoralesDataset, PytorchChoralesDataset as Chorales, PytorchSplitChoralesDataset as SplitChorales
 from torch.utils.data import DataLoader, TensorDataset
+import glob
 import torch
 import shutil
 import numpy as np
+import requests, zipfile, io, re
 from tokeniser import tokeniser
 np.set_printoptions(threshold=np.inf)
 
@@ -237,36 +239,45 @@ def FB_and_pianoroll(score: Music):
     # add FB
     pianoroll[:,-1] = fb_array
 
-    return torch.from_numpy(pianoroll)
+    torch_vers = torch.from_numpy(pianoroll)
+    return torch_vers.float()
 
 
-# https://datascience.stackexchange.com/a/47249 ??
-# batch size can be whatever is divisible ig
-# each input is S,Acc,FB, each output is A,T,B,S+1,Acc+1,FB+1
-# hopefully it'll tell when each piece ends bc of the 000000
+def get_chorales(url, dest_folder ):
+    request = requests.get(url)
+    z = zipfile.ZipFile(io.BytesIO(request.content))
 
-# we don't wanna shuffle this i think?
+    # make into expected chorales/ file path format
+    for file in z.infolist():
+        # matches the .musicxml that is immediately under musicXML and doesn't go into further folders due to "(?!.*/)"
+        match = re.match("juyaolongpaul-Bach_chorale_FB-0873cc7/FB_source/musicXML_master/(?!.*/).*\.musicxml", file.filename)
+        if match:
+            print(file.filename)
+            if file.is_dir():
+                continue
 
-# TODO: do this in the RNN itself as we want to classify??
-def load_data(file, split, batch_size = 1):
+            #remove dir info
+            file.filename = path.basename(file.filename)
 
-    if split:
-        dataset = SplitChorales(file)
-    else:
-        dataset = Chorales(file)
+            z.extract(file, dest_folder)
 
-    # loader = DataLoader()
+    z.close()
 
 
 def main():
-    in_folder = "chorales/FB_source/musicXML_master"
+    in_folder = "./chorales/FB_source/musicXML_master"
     # original scores but without ineligible scores - use for muspy dataset
     filtered_folder = "filtered"
     out_folder = "added_FB"
     torch_save = "preprocessed.pt"
     resolution = 8
 
-    # add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
+    if not path.exists("chorales"):
+        print("Downloading chorales.")
+        get_chorales("https://zenodo.org/records/5084914/files/juyaolongpaul/Bach_chorale_FB-v2.0.zip?download=1", in_folder)
+
+
+    add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
 
     global m21_lyrics_folder
     m21_lyrics_folder = out_folder
