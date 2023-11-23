@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch
 from local_datasets import PytorchChoralesDataset as Chorales, PytorchSplitChoralesDataset as SplitChorales
 from torch.utils.data import DataLoader
+import time, math
 
 is_cuda = torch.cuda.is_available()
 if is_cuda:
@@ -27,7 +28,8 @@ else:
 # hidden dim is hyperparam, find outside of model
 
 # TODO: currently not doing batch numbers, just input one whole piece at a time
-# TODO: if want to use batch sizes, break up the scores??
+# TODO: if want to use batch sizes, break up the scores?? probably want each batch to be a score due to each piece being "separate" 
+#  use padding like in floydhub if batching
 
 
 # follows https://blog.floydhub.com/a-beginners-guide-on-recurrent-neural-networks-with-pytorch/
@@ -62,16 +64,54 @@ class RNN(nn.Module):
         return output, h_n
 
 
-
     def init_hidden(self, batch_size):
         # initialise the hidden state - makes a layers x batch size x hidden size sized tensor 
         torch.zeros(self.n_layers, batch_size, self.hidden_size)
 
 
 
-# TODO: hyperparameter adjust
-def train(model, loader, criterion, optimiser, hyperparameters):
+def generate_sequences(dataset:SplitChorales|Chorales, split:bool):
     pass
+
+
+def time_since(since):
+    now = time.time()
+    secs = now-since
+    mins = math.floor(secs/60)
+    secs -= mins * 60
+    return '%dmins %dsecs' % (mins, secs)
+
+def train(model:RNN, loader:DataLoader, criterion:nn.CrossEntropyLoss, optimiser:torch.optim.Adam, hyperparameters):
+    # https://pytorch.org/tutorials/intermediate/char_rnn_classification_tutorial.html#training-the-network displaying loss based on this
+
+    current_loss = 0
+    all_losses = []
+    start = time.time()
+
+    for epoch in range(hyperparameters["n_epochs"]):
+        for x, y in loader:
+            x, y = x.to(device), y.to(device)
+
+            optimiser.zero_grad()
+            output, hidden = model(x)
+            loss = criterion(output, y)
+            loss.backward()
+            optimiser.step()
+
+            current_loss += loss.item()
+
+            if epoch % hyperparameters["print_every"] == 0:
+                print("Epoch: {}/{},".format(epoch, hyperparameters["n_epochs"], end=" "))
+                print(time_since(start).format(end = "......................... "))
+                print("Loss: {:4f}".format(loss.item()))
+
+            # add average loss to plot graph
+            if epoch % hyperparameters["plot_every"] == 0:
+                all_losses.append(current_loss/hyperparameters["plot_every"])
+                current_loss=0
+
+    return all_losses
+
 
 
 def test():
@@ -81,8 +121,11 @@ def test():
 hyperparameters = {
     "lr": 0.01,
     "n_epochs": 100,
+    # measured in epoch numbers
+    "plot_every" : 4,
+    "print_every" : 10,
     "batch_size": 1, #if data not padded, this is the only one that can be done
-    "hidden_size": 1
+    "hidden_size": 1,
 }
 
 def main():
