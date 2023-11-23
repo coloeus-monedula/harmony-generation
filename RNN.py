@@ -32,10 +32,16 @@ else:
 #  use padding like in floydhub if batching
 
 
+# https://datascience.stackexchange.com/a/47249 ??
+# batch size can be whatever is divisible ig
+# each input is S,Acc,FB, each output is A,T,B,S+1,Acc+1,FB+1
+# hopefully it'll tell when each piece ends bc of the 000000
+
+
 # follows https://blog.floydhub.com/a-beginners-guide-on-recurrent-neural-networks-with-pytorch/
 class RNN(nn.Module):
     def __init__(self, input_size, output_size, hidden_size, n_layers, nonlinearity="tanh") -> None:
-        super(RNN, self).__init__
+        super(RNN, self).__init__()
 
         # dimensions for hidden layers
         self.hidden_size = hidden_size
@@ -54,12 +60,15 @@ class RNN(nn.Module):
         h_n = self.init_hidden(batch_size)
 
         # final hidden state for each element in batch
-        output, h_n: torch.Tensor = self.rnn(x, h_n)
+        output, h_n = self.rnn(x, h_n)
 
         # make output stored in same block of memory
         # fit to hidden_size dimensiions to pass through linear layer
         output = output.contiguous().view(-1, self.hidden_size)
         output = self.linear(output)
+
+        # add extra (batch) dimension to output??
+        output = output[None,:,:]
 
         return output, h_n
 
@@ -82,33 +91,43 @@ def time_since(since):
     return '%dmins %dsecs' % (mins, secs)
 
 def train(model:RNN, loader:DataLoader, criterion:nn.CrossEntropyLoss, optimiser:torch.optim.Adam, hyperparameters):
-    # https://pytorch.org/tutorials/intermediate/char_rnn_classification_tutorial.html#training-the-network displaying loss based on this
 
-    current_loss = 0
     all_losses = []
     start = time.time()
 
     for epoch in range(hyperparameters["n_epochs"]):
+        total_loss = 0
+
+        # if batches = 1 then num_batches = number of scores
+        # num_batches = len(loader)
+
+        # number of rounds
+        num_rounds = 0
+
         for x, y in loader:
             x, y = x.to(device), y.to(device)
 
             optimiser.zero_grad()
             output, hidden = model(x)
+
+            # print(output)
+            # print(y)
+
             loss = criterion(output, y)
             loss.backward()
             optimiser.step()
 
-            current_loss += loss.item()
+            total_loss += loss.item()
+            num_rounds+=1
 
-            if epoch % hyperparameters["print_every"] == 0:
-                print("Epoch: {}/{},".format(epoch, hyperparameters["n_epochs"], end=" "))
-                print(time_since(start).format(end = "......................... "))
-                print("Loss: {:4f}".format(loss.item()))
+        if epoch % hyperparameters["print_every"] == 0:
+            print('Epoch: {}/{},'.format(epoch+1, hyperparameters["n_epochs"]), end=" ")
+            print(time_since(start),end = "......................... ")
+            print("Loss: {:4f}".format(total_loss/num_rounds))
 
-            # add average loss to plot graph
-            if epoch % hyperparameters["plot_every"] == 0:
-                all_losses.append(current_loss/hyperparameters["plot_every"])
-                current_loss=0
+        # add average loss per epoch across all batches to plot graph
+        if epoch % hyperparameters["plot_every"] == 0:
+            all_losses.append(total_loss/num_rounds)
 
     return all_losses
 
@@ -122,10 +141,10 @@ hyperparameters = {
     "lr": 0.01,
     "n_epochs": 100,
     # measured in epoch numbers
-    "plot_every" : 4,
+    "plot_every" : 5,
     "print_every" : 10,
     "batch_size": 1, #if data not padded, this is the only one that can be done
-    "hidden_size": 1,
+    "hidden_size": 3,
 }
 
 def main():
@@ -136,6 +155,8 @@ def main():
     # args = parser.parse_args()
     split = True
     file = "preprocessed.pt"
+    # file = "preprocessed_no_nextx.pt"
+
 
     if split:
         dataset = SplitChorales(file)
