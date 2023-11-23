@@ -151,6 +151,14 @@ def convert_to_pytorch_dataset(filtered_folder, torch_file, resolution, split):
             (tensor_x_start, tensor_y, tensor_x_fin) = torch.tensor_split(dataset[i],  (1, 4), dim=1)
             tensor_x = torch.cat((tensor_x_start, tensor_x_fin), dim=1)
 
+            # timestep+1 S, Acc, FB
+            x_plus_1 = tensor_x.detach().clone()[1:]
+            # remove last line (of 0s)
+            tensor_x = tensor_x[:-1]
+            tensor_y = tensor_y[:-1]
+            # add timestep+1 info to y
+            tensor_y = torch.cat((tensor_y, x_plus_1), dim=1)
+
             dataset_list[filename] = (tensor_x, tensor_y)
         else:
             tensor = dataset[i]
