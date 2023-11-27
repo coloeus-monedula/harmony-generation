@@ -240,7 +240,7 @@ def FB_and_pianoroll(score: Music):
     pianoroll[:,-1] = fb_array
 
     torch_vers = torch.from_numpy(pianoroll)
-    return torch_vers.float()
+    return torch_vers.long()
 
 
 def get_chorales(url, dest_folder ):
