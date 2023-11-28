@@ -46,6 +46,7 @@ class EncoderRNN(nn.Module):
     def forward(self, input):
         print("Input shape:", input.shape)
         print("Embedding layer params:", self.embedding.weight.shape)
+
         embedded = self.embedding(input)
         embedded = self.dropout(embedded)
         output, hidden = self.rnn(embedded)
@@ -270,6 +271,9 @@ def main():
 
     encoder = EncoderRNN(input_size, hidden_size)
     decoder = DecoderRNN(hidden_size, input_size, output_num=output_num)
+
+    encoder.to(device)
+    decoder.to(device)
 
     # loss and optimiser
     e_optimiser = torch.optim.Adam(encoder.parameters(), lr = parameters["lr"])
