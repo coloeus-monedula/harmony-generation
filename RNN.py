@@ -33,7 +33,7 @@ else:
 
 # encoder decoder structure follows https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html and supervisor code
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, n_layers = 1, dropout_p = 0.1) -> None:
+    def __init__(self, input_size, hidden_size, n_layers = 1, dropout_p = 0.05) -> None:
         super(EncoderRNN, self).__init__()
 
         # turn input into a hidden_size sized vector, use to try and learn relationship between pitches and FB notations 
@@ -44,8 +44,8 @@ class EncoderRNN(nn.Module):
         self.dropout = nn.Dropout(dropout_p)
 
     def forward(self, input):
-        print("Input shape:", input.shape)
-        print("Embedding layer params:", self.embedding.weight.shape)
+        # print("Input shape:", input.shape)
+        # print("Embedding layer params:", self.embedding.weight.shape)
 
         embedded = self.embedding(input)
         embedded = self.dropout(embedded)
@@ -178,16 +178,17 @@ def train(encoder:EncoderRNN, decoder:DecoderRNN, loader:DataLoader, criterion:n
         for x, y in loader:
             x, y = x.to(device), y.to(device)
 
-            print(x.size())
-            try:
-                encode_out, encode_hid = encoder(x)
-            except IndexError:
-                print(x)
-                raise IndexError
+            encode_out, encode_hid = encoder(x)
+            # print(x.size())
+            # try:
+            # except IndexError:
+            #     print(x)
+            #     print("Rounds: ", num_rounds)
+            #     raise IndexError
             # decoder gets encoder output for batch, final hidden output, true labels
             decode_out, decode_hid = decoder(encode_out, encode_hid, y)
 
-
+            # print(decode_out.size())
             predicted = decode_out.reshape(hyperparameters["batch_size"] * hyperparameters["output_num"], -1)
             # flattens 
             flattened_y = y.reshape(-1)
@@ -235,13 +236,15 @@ def split_scores(dataset: SplitChorales) -> TensorDataset:
 # hyperparams and params
 parameters = {
     "lr": 0.01,
-    "n_epochs": 150,
+    "n_epochs": 100,
     # measured in epoch numbers
     "plot_every" : 5,
     "print_every" : 10,
     "batch_size": 32,
     "hidden_size": 128,
-    "input_size" : 250,
+    #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
+    # possibly because 0 is also used as a token so off by 1
+    "input_size" : 252, 
     "output_num": 6,
 }
 
@@ -262,6 +265,23 @@ def main():
         dataset = Chorales(file)
 
     split_tensors = split_scores(dataset)
+
+    # TODO: use pack padded?
+    # pad end of batch
+    modulo = len(split_tensors) % parameters["batch_size"]
+    to_pad = parameters["batch_size"] - modulo
+    total_padding_x = []
+    total_padding_y = []
+    for i in range(to_pad):
+        total_padding_x.append(torch.tensor([0,0,0]).long())
+        total_padding_y.append(torch.tensor([0,0,0,0,0,0]).long())
+
+    total_padding_x = torch.stack(total_padding_x).long()
+    total_padding_y = torch.stack(total_padding_y).long()
+    
+    total_padding = TensorDataset(total_padding_x, total_padding_y)
+    split_tensors = split_tensors + total_padding
+
     # shuffle = false since data is time contiguous + to learn when an end of piece is
     loader = DataLoader(split_tensors, batch_size=parameters["batch_size"], shuffle=False)
 
