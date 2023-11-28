@@ -40,11 +40,14 @@ class EncoderRNN(nn.Module):
         self.embedding = nn.Embedding(input_size, hidden_size)
 
         # TODO: change to lstm, keep in mind also has c_n output
-        self.rnn = nn.RNN(hidden_size, hidden_size, n_layers, batch_first=True)
+        self.rnn = nn.RNN(hidden_size, hidden_size,num_layers= n_layers, batch_first=True)
         self.dropout = nn.Dropout(dropout_p)
 
     def forward(self, input):
-        embedded = self.dropout(self.embedding(input))
+        print("Input shape:", input.shape)
+        print("Embedding layer params:", self.embedding.weight.shape)
+        embedded = self.embedding(input)
+        embedded = self.dropout(embedded)
         output, hidden = self.rnn(embedded)
 
         return output, hidden
@@ -57,7 +60,7 @@ class EncoderRNN(nn.Module):
 class DecoderRNN(nn.Module):
 
     # output size typically equals encoder's input size
-    def __init__(self,  hidden_size, output_size,  n_layers =1, output_num = 6) -> None:
+    def __init__(self,  hidden_size, output_size, output_num = 6,  n_layers =1) -> None:
         super(DecoderRNN, self).__init__()
 
         self.output_num = output_num
@@ -174,14 +177,17 @@ def train(encoder:EncoderRNN, decoder:DecoderRNN, loader:DataLoader, criterion:n
         for x, y in loader:
             x, y = x.to(device), y.to(device)
 
-            encode_out, encode_hid = encoder(x)
-
+            print(x.size())
+            try:
+                encode_out, encode_hid = encoder(x)
+            except IndexError:
+                print(x)
+                raise IndexError
             # decoder gets encoder output for batch, final hidden output, true labels
             decode_out, decode_hid = decoder(encode_out, encode_hid, y)
 
 
             predicted = decode_out.reshape(hyperparameters["batch_size"] * hyperparameters["output_num"], -1)
-            print(predicted)
             # flattens 
             flattened_y = y.reshape(-1)
             loss =criterion(predicted, flattened_y)
@@ -234,7 +240,7 @@ parameters = {
     "print_every" : 10,
     "batch_size": 32,
     "hidden_size": 128,
-    "input_size" : 3,
+    "input_size" : 250,
     "output_num": 6,
 }
 
@@ -263,7 +269,7 @@ def main():
     output_num = parameters["output_num"]
 
     encoder = EncoderRNN(input_size, hidden_size)
-    decoder = DecoderRNN(hidden_size, input_size, output_num)
+    decoder = DecoderRNN(hidden_size, input_size, output_num=output_num)
 
     # loss and optimiser
     e_optimiser = torch.optim.Adam(encoder.parameters(), lr = parameters["lr"])
