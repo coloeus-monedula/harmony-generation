@@ -269,7 +269,7 @@ def main():
     # original scores but without ineligible scores - use for muspy dataset
     filtered_folder = "filtered"
     out_folder = "added_FB"
-    torch_save = "preprocessed.pt"
+    torch_save = "content/preprocessed.pt"
     resolution = 8
 
     if not path.exists("chorales"):

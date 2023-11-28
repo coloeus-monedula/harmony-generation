@@ -40,13 +40,10 @@ class EncoderRNN(nn.Module):
         self.embedding = nn.Embedding(input_size, hidden_size)
 
         # TODO: change to lstm, keep in mind also has c_n output
-        self.rnn = nn.RNN(hidden_size, hidden_size,num_layers= n_layers, batch_first=True)
+        self.rnn = nn.LSTM(hidden_size, hidden_size,num_layers= n_layers, batch_first=True)
         self.dropout = nn.Dropout(dropout_p)
 
     def forward(self, input):
-        # print("Input shape:", input.shape)
-        # print("Embedding layer params:", self.embedding.weight.shape)
-
         embedded = self.embedding(input)
         embedded = self.dropout(embedded)
         output, hidden = self.rnn(embedded)
@@ -68,7 +65,7 @@ class DecoderRNN(nn.Module):
         self.n_layers = n_layers
 
         self.embedding = nn.Embedding(output_size, hidden_size)
-        self.rnn = nn.RNN(hidden_size, hidden_size, n_layers, batch_first=True)
+        self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True)
         self.linear = nn.Linear(hidden_size, output_size)
 
     def forward(self, encoder_outputs, encoder_hidden, target_tensor = None):
@@ -113,48 +110,6 @@ class DecoderRNN(nn.Module):
         return self.embedding(x)
 
 
-# follows https://blog.floydhub.com/a-beginners-guide-on-recurrent-neural-networks-with-pytorch/
-class LSTM(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size, n_layers=1) -> None:
-        super(LSTM, self).__init__()
-
-        # dimensions for hidden layers
-        self.hidden_size = hidden_size
-        # number of RNN layers
-        self.n_layers = n_layers
-
-        # will be made up of n_layers of LSTM
-        # DataLoader does batch number first so switch to batch first
-        self.lstm = nn.LSTM(input_size, hidden_size, n_layers, batch_first=True)
-        # reshape to output 
-        self.linear = nn.Linear(hidden_size, output_size)
-
-
-    def forward(self, x):
-        batch_size = x.size(0)
-        h_n = self.init_hidden(batch_size)
-        
-
-        # final hidden state for each element in batch
-        output, h_n = self.lstm(x, h_n)
-
-        # make output stored in same block of memory
-        # fit to hidden_size dimensiions to pass through linear layer
-        output = output.contiguous().view(-1, self.hidden_size)
-        output = self.linear(output)
-
-        # add extra (batch) dimension to output??
-        # output = output[None,:,:]
-
-        return output, h_n
-
-
-    def init_hidden(self, batch_size):
-        # initialise the hidden state - makes a layers x batch size x hidden size sized tensor 
-        return torch.zeros(self.n_layers, batch_size, self.hidden_size, dtype=torch.long)
-
-
-
 
 def time_since(since):
     now = time.time()
@@ -179,12 +134,7 @@ def train(encoder:EncoderRNN, decoder:DecoderRNN, loader:DataLoader, criterion:n
             x, y = x.to(device), y.to(device)
 
             encode_out, encode_hid = encoder(x)
-            # print(x.size())
-            # try:
-            # except IndexError:
-            #     print(x)
-            #     print("Rounds: ", num_rounds)
-            #     raise IndexError
+
             # decoder gets encoder output for batch, final hidden output, true labels
             decode_out, decode_hid = decoder(encode_out, encode_hid, y)
 
@@ -254,9 +204,11 @@ def main():
     # # input size should be = 3
 
     # args = parser.parse_args()
+    eval = False
+
+    path = "content/model.pt"
     split = True
-    file = "preprocessed.pt"
-    # file = "preprocessed_no_nextx.pt"
+    file = "content/preprocessed.pt"
 
 
     if split:
@@ -266,7 +218,6 @@ def main():
 
     split_tensors = split_scores(dataset)
 
-    # TODO: use pack padded?
     # pad end of batch
     modulo = len(split_tensors) % parameters["batch_size"]
     to_pad = parameters["batch_size"] - modulo
@@ -292,16 +243,39 @@ def main():
     encoder = EncoderRNN(input_size, hidden_size)
     decoder = DecoderRNN(hidden_size, input_size, output_num=output_num)
 
-    encoder.to(device)
-    decoder.to(device)
 
     # loss and optimiser
     e_optimiser = torch.optim.Adam(encoder.parameters(), lr = parameters["lr"])
     d_optimiser = torch.optim.Adam(decoder.parameters(), lr = parameters["lr"])
 
-    criterion = nn.NLLLoss()
+    if eval:
+        print("Evaluating model.")
 
-    train(encoder, decoder, loader, criterion, e_optimiser, d_optimiser, parameters)
+        checkpoint = torch.load(path)
+        encoder.load_state_dict(checkpoint["encode"])
+        decoder.load_state_dict(checkpoint["decode"])
+        e_optimiser.load_state_dict(checkpoint["encode_optim"])
+        d_optimiser.load_state_dict(checkpoint["decode_optim"])
+        
+        encoder.eval()
+        decoder.eval()
+
+    else:
+        print("Training model.")
+        criterion = nn.NLLLoss()
+
+        encoder.to(device)
+        decoder.to(device)
+        train(encoder, decoder, loader, criterion, e_optimiser, d_optimiser, parameters)
+
+        # save model
+        torch.save({
+            "encode": encoder.state_dict(),
+            "decode":decoder.state_dict(),
+            "encode_optim": e_optimiser.state_dict(),
+            "decode_optim": d_optimiser.state_dict(),
+        }, path)
+
 
 
 
