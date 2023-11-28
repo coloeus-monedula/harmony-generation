@@ -71,9 +71,8 @@ class DecoderRNN(nn.Module):
     def forward(self, encoder_outputs, encoder_hidden, target_tensor = None):
         batch_size = encoder_outputs.size(0)
 
-        # zeroes should be fine for us since 0 is used as silence
         # second dimension = 1 - means we are processing 1 timestep at a time
-        decoder_input = torch.zeros(batch_size, self.n_layers, dtype=torch.long, device=device)
+        decoder_input = torch.empty(batch_size, self.n_layers, dtype=torch.long, device=device).fill(parameters["SOS_TOKEN"])
         decoder_hidden = encoder_hidden
         decoder_outputs = []
 
@@ -196,6 +195,7 @@ parameters = {
     # possibly because 0 is also used as a token so off by 1
     "input_size" : 252, 
     "output_num": 6,
+    "SOS_TOKEN": 129 #for the decoder
 }
 
 def main():
@@ -236,6 +236,7 @@ def main():
     # shuffle = false since data is time contiguous + to learn when an end of piece is
     loader = DataLoader(split_tensors, batch_size=parameters["batch_size"], shuffle=False)
 
+    # calculate input size dynamically by the tokeniser
     input_size = parameters["input_size"]
     hidden_size = parameters["hidden_size"]
     output_num = parameters["output_num"]

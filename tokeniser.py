@@ -1,4 +1,78 @@
 
+
+
+class Tokeniser:
+    tokens: dict[str, int] = {
+
+    }
+    
+    def __init__(self, start_token = 130, max_token = 280) -> None:
+        self.start_token = start_token
+        self.max_token = max_token
+
+        # add None token
+        self.tokens["None"] = start_token
+
+        # next free number to assign an FB to
+        self.next = start_token + 1
+
+    def get(self, fb_string):
+        return self.tokens.get(fb_string, self.tokens.get("Unknown"))
+
+    def add(self, fb_string):
+        token = self.tokens.get(fb_string)
+
+        # unknown already added to dict
+        if token is None and self.next > self.max_token:
+            print("Maximum token number reached - encoding as Unknown")
+            return self.tokens.get("Unknown")
+        elif token is None and self.next == self.max_token:
+            print("Maximum token number reached - encoding as Unknown (First time)")
+            self.tokens["Unknown"] = self.next
+            self.next +=1
+
+            return self.tokens.get("Unknown")
+
+        elif token is None:
+            self.tokens[fb_string] = self.next
+            self.next +=1
+
+            return self.tokens.get(fb_string)
+        
+        else:
+            return token
+        
+    
+    def save(self):
+        return {
+            "tokens": self.tokens,
+            "start": self.start_token,
+            "max": self.max_token,
+            "next": self.next} 
+    
+    def get_none(self):
+        return self.tokens.get("None")
+    
+
+    def get_max_token(self):
+        length = len(self.tokens)
+
+        # since start token is like index 0 of a 1-length array, hence -1 
+        return self.start_token + length - 1
+    
+
+    def load(self, state):
+        self.start_token = state.get("start")
+        self.next = state.get("next")
+        self.max_token = state.get("max")
+
+        self.tokens = state.get("tokens")
+
+
+# TODO: make into class, set a "start token" 
+# if get beyond max_token , set as the unknown token
+# input size then becomes max_token + 1 in RNN bc we also use 0
+
 # tokeniser symbols from this: https://robertkelleyphd.com/home/FiguredBass1.pdf#page=2
 # TODO: also look at how paper did their FB as it will differ slightly from the "standard" - more verbose for instance in 75
 # decouple multiple figures, treat as independent - let model potentially figure it out, same with equivalent FB notations

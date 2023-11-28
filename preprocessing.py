@@ -1,5 +1,6 @@
 
 from os import path, makedirs
+import dill as pickle
 
 from muspy import Music
 from extract_baseline import extract_FB
@@ -12,7 +13,7 @@ import torch
 import shutil
 import numpy as np
 import requests, zipfile, io, re
-from tokeniser import tokeniser
+from tokeniser import Tokeniser
 np.set_printoptions(threshold=np.inf)
 
 
@@ -127,8 +128,7 @@ def add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose):
     if verbose:
         print(invalid_num,"/", len(files),"files were invalid")
 
-# filename - lyrics object
-m21_lyrics_folder = ""
+
 
 # folder is path to converted FB xml
 # resolution = how many notes per crotchet - goes up to hemisemiquavers by default
@@ -175,13 +175,12 @@ def convert_to_pytorch_dataset(filtered_folder, torch_file, resolution, split):
     return chorales
 
 
-# gets a list of Lyrics
 def tokenise_FB(lyrics: list[m21_note.Lyric]):
     fb_string = ""
     for lyric in lyrics:
         fb_string+=lyric.text.strip()
 
-    return tokeniser.get(fb_string, tokeniser.get("Unknown"))
+    return tokens.add(fb_string)
 
 
 
@@ -211,7 +210,7 @@ def FB_and_pianoroll(score: Music):
     fb_length = int(fb.duration.quarterLength * resolution)
     # array specification follows pianoroll representation spec
     # NOTE: do we NEED length+1? is length +1 just so the last bit is a bar of silence?
-    fb_array = np.full(fb_length+1, tokeniser.get("None"), np.uint8)
+    fb_array = np.full(fb_length+1, tokens.get_none(), np.int16)
 
     # last bar of silence, won't have default FB so make 0
     fb_array[-1] = 0
@@ -229,7 +228,7 @@ def FB_and_pianoroll(score: Music):
 
 
     # convert the rest of the notes into pitches
-    pianoroll = np.zeros((fb_length+1, len(score.tracks) + 1), np.uint8)
+    pianoroll = np.zeros((fb_length+1, len(score.tracks) + 1), np.int16)
     for track_num in range(len(score.tracks)):
         notes = score.tracks[track_num].notes
         for note in notes:
@@ -264,12 +263,17 @@ def get_chorales(url, dest_folder ):
     z.close()
 
 
+# filename - lyrics object
+m21_lyrics_folder = ""
+tokens = Tokeniser()
+
 def main():
     in_folder = "./chorales/FB_source/musicXML_master"
     # original scores but without ineligible scores - use for muspy dataset
     filtered_folder = "filtered"
     out_folder = "added_FB"
     torch_save = "content/preprocessed.pt"
+    token_save = "content/tokens.pkl"
     resolution = 8
 
     if not path.exists("chorales"):
@@ -277,12 +281,16 @@ def main():
         get_chorales("https://zenodo.org/records/5084914/files/juyaolongpaul/Bach_chorale_FB-v2.0.zip?download=1", in_folder)
 
 
-    add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
+    # add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
 
     global m21_lyrics_folder
     m21_lyrics_folder = out_folder
 
     convert_to_pytorch_dataset(filtered_folder, torch_save, resolution, split=True)
+
+    print(tokens.tokens)
+    with open(token_save, "wb") as f:
+        pickle.dump(tokens.save(), f)
 
     # file = "./chorales/FB_source/musicXML_master/BWV_248.59_FB.musicxml"
     # combine_bassvoice_accomp(file)
