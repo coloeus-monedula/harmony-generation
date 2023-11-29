@@ -6,6 +6,8 @@ class Tokeniser:
 
     }
     
+    # start token should be 1 after the first empty number after pitch midi
+    # 129 is used as a start of sentence token
     def __init__(self, start_token = 130, max_token = 280) -> None:
         self.start_token = start_token
         self.max_token = max_token

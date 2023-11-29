@@ -6,6 +6,8 @@ import torch
 from local_datasets import PytorchChoralesDataset as Chorales, PytorchSplitChoralesDataset as SplitChorales
 from torch.utils.data import DataLoader, TensorDataset
 import time, math
+from tokeniser import Tokeniser
+import dill as pickle
 
 is_cuda = torch.cuda.is_available()
 if is_cuda:
@@ -72,7 +74,7 @@ class DecoderRNN(nn.Module):
         batch_size = encoder_outputs.size(0)
 
         # second dimension = 1 - means we are processing 1 timestep at a time
-        decoder_input = torch.empty(batch_size, self.n_layers, dtype=torch.long, device=device).fill(parameters["SOS_TOKEN"])
+        decoder_input = torch.empty(batch_size, self.n_layers, dtype=torch.long, device=device).fill_(parameters["SOS_TOKEN"])
         decoder_hidden = encoder_hidden
         decoder_outputs = []
 
@@ -108,7 +110,16 @@ class DecoderRNN(nn.Module):
     def get_embedding(self, x):
         return self.embedding(x)
 
+class EncoderDecoder(nn.Module):
+    def __init__(self, encoder, decoder):
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
 
+    def forward(self, x, y):
+        encode_out, encode_hid = self.encoder(x)
+        decode_out, decode_hid = self.decoder(encode_out, encode_hid, y)
+        return decode_out, decode_hid
 
 def time_since(since):
     now = time.time()
@@ -117,7 +128,7 @@ def time_since(since):
     secs -= mins * 60
     return '%dmins %dsecs' % (mins, secs)
 
-def train(encoder:EncoderRNN, decoder:DecoderRNN, loader:DataLoader, criterion:nn.NLLLoss, e_optimiser:torch.optim.Adam, d_optimiser:torch.optim.Adam, hyperparameters):
+def train(model:EncoderDecoder, loader:DataLoader, criterion:nn.CrossEntropyLoss, optimiser:torch.optim.Adam, hyperparameters):
 
     all_losses = []
     start = time.time()
@@ -132,23 +143,18 @@ def train(encoder:EncoderRNN, decoder:DecoderRNN, loader:DataLoader, criterion:n
         for x, y in loader:
             x, y = x.to(device), y.to(device)
 
-            encode_out, encode_hid = encoder(x)
-
-            # decoder gets encoder output for batch, final hidden output, true labels
-            decode_out, decode_hid = decoder(encode_out, encode_hid, y)
+            output, hidden =  model(x, y)
 
             # print(decode_out.size())
-            predicted = decode_out.reshape(hyperparameters["batch_size"] * hyperparameters["output_num"], -1)
+            predicted = output.reshape(hyperparameters["batch_size"] * hyperparameters["output_num"], -1)
             # flattens 
             flattened_y = y.reshape(-1)
             loss =criterion(predicted, flattened_y)
 
             # backwards propagation
             loss.backward()
-            e_optimiser.step()
-            d_optimiser.step()
-            e_optimiser.zero_grad()
-            d_optimiser.zero_grad()
+            optimiser.step()
+            optimiser.zero_grad()
 
             total_loss += loss.item()
             num_rounds+=1
@@ -180,45 +186,8 @@ def split_scores(dataset: SplitChorales) -> TensorDataset:
 
     return TensorDataset(all_x, all_y)
 
-
-
-# hyperparams and params
-parameters = {
-    "lr": 0.01,
-    "n_epochs": 100,
-    # measured in epoch numbers
-    "plot_every" : 5,
-    "print_every" : 10,
-    "batch_size": 32,
-    "hidden_size": 128,
-    #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
-    # possibly because 0 is also used as a token so off by 1
-    "input_size" : 252, 
-    "output_num": 6,
-    "SOS_TOKEN": 129 #for the decoder
-}
-
-def main():
-    # parser = argparse.ArgumentParser()
-
-    # # input size should be = 3
-
-    # args = parser.parse_args()
-    eval = False
-
-    path = "content/model.pt"
-    split = True
-    file = "content/preprocessed.pt"
-
-
-    if split:
-        dataset = SplitChorales(file)
-    else:
-        dataset = Chorales(file)
-
-    split_tensors = split_scores(dataset)
-
-    # pad end of batch
+# pad end of batch
+def pad(split_tensors):
     modulo = len(split_tensors) % parameters["batch_size"]
     to_pad = parameters["batch_size"] - modulo
     total_padding_x = []
@@ -232,50 +201,95 @@ def main():
     
     total_padding = TensorDataset(total_padding_x, total_padding_y)
     split_tensors = split_tensors + total_padding
+    return split_tensors
+
+
+
+
+# hyperparams and params
+parameters = {
+    "lr": 0.01,
+    "n_epochs": 100,
+    # measured in epoch numbers
+    "plot_every" : 5,
+    "print_every" : 10,
+    "batch_size": 32,
+    "hidden_size": 128,
+    #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
+    # # possibly because 0 is also used as a token so off by 1
+    # "input_size" : 252, 
+    "output_num": 6,
+    "SOS_TOKEN": 129 #for the decoder
+}
+
+tokens = Tokeniser()
+
+def main():
+    # parser = argparse.ArgumentParser()
+
+    # # input size should be = 3
+
+    # args = parser.parse_args()
+    eval = False
+
+    path = "content/model.pt"
+    token_path = "content/tokens.pkl"
+    split = True
+    file = "content/preprocessed.pt"
+
+
+    if split:
+        dataset = SplitChorales(file)
+    else:
+        dataset = Chorales(file)
+
+    split_tensors = split_scores(dataset)
+    split_tensors = pad(split_tensors)
 
     # shuffle = false since data is time contiguous + to learn when an end of piece is
     loader = DataLoader(split_tensors, batch_size=parameters["batch_size"], shuffle=False)
 
     # calculate input size dynamically by the tokeniser
-    input_size = parameters["input_size"]
+    # add 1 since 0 is also used as a token to avoid out of index errors
+    with open(token_path, "rb") as f:
+        tokens.load(pickle.load(f))
+
+    input_size = tokens.get_max_token() + 1
     hidden_size = parameters["hidden_size"]
     output_num = parameters["output_num"]
 
     encoder = EncoderRNN(input_size, hidden_size)
     decoder = DecoderRNN(hidden_size, input_size, output_num=output_num)
-
+    encode_decode = EncoderDecoder(encoder, decoder)
 
     # loss and optimiser
-    e_optimiser = torch.optim.Adam(encoder.parameters(), lr = parameters["lr"])
-    d_optimiser = torch.optim.Adam(decoder.parameters(), lr = parameters["lr"])
+    optimiser = torch.optim.Adam(encode_decode.parameters(), lr = parameters["lr"])
 
     if eval:
         print("Evaluating model.")
 
         checkpoint = torch.load(path)
-        encoder.load_state_dict(checkpoint["encode"])
-        decoder.load_state_dict(checkpoint["decode"])
-        e_optimiser.load_state_dict(checkpoint["encode_optim"])
-        d_optimiser.load_state_dict(checkpoint["decode_optim"])
-        
-        encoder.eval()
-        decoder.eval()
+        # encoder.load_state_dict(checkpoint["encode"])
+        # decoder.load_state_dict(checkpoint["decode"])
+        encode_decode.load_state_dict(checkpoint["model"])
+        optimiser.load_state_dict(checkpoint["optimiser"])
+
+        encode_decode.eval()
 
     else:
         print("Training model.")
-        criterion = nn.NLLLoss()
+        criterion = nn.CrossEntropyLoss()
 
         encoder.to(device)
         decoder.to(device)
-        train(encoder, decoder, loader, criterion, e_optimiser, d_optimiser, parameters)
+        train(encode_decode, loader, criterion, optimiser, parameters)
 
         # save model
         torch.save({
-            "encode": encoder.state_dict(),
-            "decode":decoder.state_dict(),
-            "encode_optim": e_optimiser.state_dict(),
-            "decode_optim": d_optimiser.state_dict(),
+            "model": encode_decode.state_dict(),
+            "optimiser": optimiser.state_dict(),
         }, path)
+
 
 
 
