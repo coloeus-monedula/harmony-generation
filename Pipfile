@@ -12,6 +12,7 @@ dill = "*"
 torch = "*"
 muspy = "*"
 jsonschema = "*"
+scikit-learn = "*"
 
 [dev-packages]
 
