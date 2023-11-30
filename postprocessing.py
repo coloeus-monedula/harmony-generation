@@ -156,14 +156,21 @@ def export_audio(filename, json_folder, sound_folder):
 # TODO: if we're using data from scores, add info for time sig etc. from that? pass as an object param 
 # TODO: change how audio is exported wrt types of instruments bc realised instruments may not use the same as muspy
 def main():
-    dataset: dict[str, Tensor] = torch.load("preprocessed.pt")
-    items = list(dataset.items())
+    # dataset: dict[str, Tensor] = torch.load("preprocessed.pt")
+    # items = list(dataset.items())
 
-    # remove extension
-    filename = path.splitext(items[0][0])[0]
+    # # remove extension
+    # filename = path.splitext(items[0][0])[0]
 
     # tensor_to_json(items[0][1], "generated_JSON", filename+".json")
     # test using preprocessed stuff
+
+    generated_path = "temp/generated.pt"
+    resolution = 8
+    generated = torch.load(generated_path)
+
+    filename = "test"
+    tensor_to_json(generated, "generated_JSON", filename+".json")
 
     export_audio(filename, "generated_JSON", "audio")
 if __name__ == "__main__":

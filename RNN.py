@@ -320,6 +320,9 @@ def main():
     split = True
     file = "content/preprocessed.pt"
 
+    # TODO: make this the chorale name
+    generated_path = "temp/generated.pt"
+
 
     if split:
         dataset = SplitChorales(file)
@@ -343,7 +346,13 @@ def main():
         # optimiser.load_state_dict(checkpoint["optimiser"])
 
         accuracy, generated = generate(model, dataset[0], parameters)
+
+        generated = generated.cpu()
+        torch.save(generated, generated_path)
+
         print(generated)
+
+        
 
     else:
         print("Training model.")
