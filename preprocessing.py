@@ -185,17 +185,6 @@ def tokenise_FB(lyrics: list[m21_note.Lyric]):
 
 
 # factory method to call, uses pianoroll conversion inside but also adds on encoded FB using tokenise_FB and ignores velocity
-
-# TODO: READ MUSIC21 HERE -> GET LAST FB PART 
-# TODO: get muspy resolution - shows how many timesteps per quarter note. .quarterLength for m21 objects show how many quarter note lengths the Note is. do float(note * resolution) to get timesteps
-#  for all notes in part:
-# get duration of note in muspy timesteps and see if there is FB under it
-# if no FB: encode as "None" value for that duration of timesteps
-# if there is, tokenise the lyrics, return value (with default being another val eg. 180)
-# results in array of length timesteps
-# then: zip() tracks and FB together (check they first have same length) - use the encode notes func to init array. position is s/a/t/b/accomp/fb and not note.pitch however, and value is pitch
-# one "internal" array for every timestep 
-# need to check fb timestep legnth is equal to the others
 # NOTE: CAN'T USE MUSPY PIANOROLL FORMAT, make our own with pitch numbers instead - https://github.com/ageron/handson-ml3/blob/main/15_processing_sequences_using_rnns_and_cnns.ipynb
 
 # https://salu133445.github.io/muspy/_modules/muspy/outputs/pianoroll.html#to_pianoroll_representation
@@ -266,6 +255,10 @@ def get_chorales(url, dest_folder ):
 # filename - lyrics object
 m21_lyrics_folder = ""
 tokens = Tokeniser()
+
+
+# TODO: CREATE PROCESS_SINGLE_CHORALE FUNC
+# TODO: add EOS token??
 
 def main():
     in_folder = "./chorales/FB_source/musicXML_master"
