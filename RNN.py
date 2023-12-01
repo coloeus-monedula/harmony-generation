@@ -284,6 +284,9 @@ def join_score(x: torch.Tensor, y: torch.Tensor):
     b = y[:,2]
 
     generated = torch.stack([s,a,t,b,acc,fb], dim = 1)
+    # add a line of silence
+    silence = torch.tensor([[0,0,0,0,0,0]])
+    generated = torch.cat((generated, silence)) 
 
     return generated
 
@@ -341,7 +344,7 @@ def main():
         print("Evaluating model.")
 
         # NOTE: to evaluate, need to remove test chorales from dataset
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=device)
         model.load_state_dict(checkpoint["model"])
         # optimiser.load_state_dict(checkpoint["optimiser"])
 
