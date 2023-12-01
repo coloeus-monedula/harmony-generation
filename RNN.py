@@ -327,7 +327,7 @@ def main():
     if split:
         dataset = SplitChorales(file)
     else:
-        # NOTE: following model code assumes SplitChorales
+        # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
         dataset = Chorales(file)
 
     split_tensors = split_scores(dataset)

@@ -8,15 +8,11 @@ from lxml import etree
 from music21 import converter, stream, chord, note as m21_note
 from local_datasets import MuspyChoralesDataset, PytorchChoralesDataset as Chorales, PytorchSplitChoralesDataset as SplitChorales
 from torch.utils.data import DataLoader, TensorDataset
-import glob
-import torch
-import shutil
-import numpy as np
+import glob, torch, shutil, numpy as np, random
 import requests, zipfile, io, re
 from tokeniser import Tokeniser
+
 np.set_printoptions(threshold=np.inf)
-
-
 
 
 # music21 combines the two parts using chordify, takes the top layer of notes if there's a chord
@@ -132,19 +128,51 @@ def add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose):
 
 # folder is path to converted FB xml
 # resolution = how many notes per crotchet - goes up to hemisemiquavers by default
-def convert_to_pytorch_dataset(filtered_folder, torch_file, resolution, split):
+def create_pytorch_train_dataset(filtered_folder, torch_file, resolution, split):
 
     # TODO: change this to original scores since we don't need to read lyrics into muspy obj anymore
     # TODO: though with how the dataset is encoded in numbers it encodes pitch but not duration of a single note, so does it matter?
     chorales = MuspyChoralesDataset(filtered_folder, resolution)
 
+    dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll_factory)
 
-    dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll)
-    dataset_list: dict[str, TensorDataset] = {}
+    dataset_dict = make_pytorch_dict(chorales, split, dataset)
+    # print(dataset.__class__)
+    # https://stackoverflow.com/questions/68617340/pytorch-best-practice-to-save-big-list-of-tensors or save tensors individually?
+    # for 
+    torch.save(dataset_dict, torch_file)
+    
+    return chorales
 
-    # TODO: split into x and y bits here
-    # TODO: make structure dict but with (Tensor, Tensor) tuple 
-    # or just save as two separate files x_set and y_set
+
+# TODO: given path to test dataset and path to existing tokens, loads each as mmuspy Music Objects/Musp
+# runs it through FB and pianoroll
+# save as dict for 
+def create_pytorch_test_dataset(test_folder, token_file, torch_file, m21_lyrics_folder, resolution, split):
+
+    chorales = MuspyChoralesDataset(test_folder, resolution)
+    with open(token_file, "rb") as f:
+        token_data = pickle.load(f)
+
+    tokens = Tokeniser()
+    tokens.load(token_data)
+
+    dataset = []
+    for i in range(len(chorales)):
+        score = chorales[i]
+        pytorch_score = FB_and_pianoroll(score, tokens, m21_lyrics_folder, is_test=True)
+
+        dataset.append(pytorch_score)
+
+    dataset_dict = make_pytorch_dict(chorales, split, dataset)
+    torch.save(dataset_dict, torch_file)
+
+    return chorales
+
+
+def make_pytorch_dict(chorales, split, dataset):
+    dataset_dict: dict[str, TensorDataset] = {}
+
     for i in range(len(dataset)):
         filename = chorales[i].metadata.source_filename
 
@@ -161,44 +189,45 @@ def convert_to_pytorch_dataset(filtered_folder, torch_file, resolution, split):
             # add timestep+1 info to y
             tensor_y = torch.cat((tensor_y, x_plus_1), dim=1)
 
-            dataset_list[filename] = (tensor_x, tensor_y)
+            dataset_dict[filename] = (tensor_x, tensor_y)
         else:
             tensor = dataset[i]
-            dataset_list[filename] = tensor
-
-    
-    # print(dataset.__class__)
-    # https://stackoverflow.com/questions/68617340/pytorch-best-practice-to-save-big-list-of-tensors or save tensors individually?
-    # for 
-    torch.save(dataset_list, torch_file)
-    
-    return chorales
+            dataset_dict[filename] = tensor
+    return dataset_dict
 
 
-def tokenise_FB(lyrics: list[m21_note.Lyric]):
+def tokenise_FB(lyrics: list[m21_note.Lyric], is_test:bool):
     fb_string = ""
     for lyric in lyrics:
         fb_string+=lyric.text.strip()
 
-    return tokens.add(fb_string)
+    # so we don't contanimate the tokenisation
+    if is_test:
+        return empty_tokens.get(fb_string)
+    else:
+        return empty_tokens.add(fb_string)
 
 
 
 # factory method to call, uses pianoroll conversion inside but also adds on encoded FB using tokenise_FB and ignores velocity
 # NOTE: CAN'T USE MUSPY PIANOROLL FORMAT, make our own with pitch numbers instead - https://github.com/ageron/handson-ml3/blob/main/15_processing_sequences_using_rnns_and_cnns.ipynb
+# for use when converting a Muspy dataset for training
+def FB_and_pianoroll_factory(score: Music):
+    return FB_and_pianoroll(score, empty_tokens, m21_lyrics_folder, is_test=False)
 
 # https://salu133445.github.io/muspy/_modules/muspy/outputs/pianoroll.html#to_pianoroll_representation
 # based off original pianoroll code
-def FB_and_pianoroll(score: Music):
+def FB_and_pianoroll(score:Music, tokens:Tokeniser, m21_lyrics_folder:str, is_test: bool ):
     filename = score.metadata.source_filename
     resolution = score.resolution
 
+    # get figured bass since muspy doesn't read it in
     m21 = converter.parseFile(m21_lyrics_folder+"/"+filename)
     fb = m21.parts[-1]
 
     fb_length = int(fb.duration.quarterLength * resolution)
     # array specification follows pianoroll representation spec
-    # NOTE: do we NEED length+1? is length +1 just so the last bit is a bar of silence?
+    # length+1 so last bar is a bar of silence
     fb_array = np.full(fb_length+1, tokens.get_none(), np.int16)
 
     # last bar of silence, won't have default FB so make 0
@@ -210,7 +239,7 @@ def FB_and_pianoroll(score: Music):
         duration = int(el.duration.quarterLength * resolution)
         lyrics = el.lyrics
         if len(lyrics) != 0:
-            token = tokenise_FB(lyrics)
+            token = tokenise_FB(lyrics, is_test)
             fb_array[fb_timestep: fb_timestep+duration] = token
 
         fb_timestep+=duration
@@ -229,6 +258,21 @@ def FB_and_pianoroll(score: Music):
 
     torch_vers = torch.from_numpy(pianoroll)
     return torch_vers.long()
+
+
+
+# given a filtered musicxml folder, selects n random files and moves to test/ folder
+# can also manually move musicxml files
+def move_test_chorales(dest, source, n):
+    if not path.exists(dest):
+        makedirs(dest)
+
+    folder_glob = path.join(source, "*.musicxml")
+    files = glob.glob(folder_glob)
+    selected = random.sample(files, n)
+
+    for file in selected:
+        shutil.move(file, dest)
 
 
 def get_chorales(url, dest_folder ):
@@ -254,18 +298,19 @@ def get_chorales(url, dest_folder ):
 
 # filename - lyrics object
 m21_lyrics_folder = ""
-tokens = Tokeniser()
 
 
-# TODO: CREATE PROCESS_SINGLE_CHORALE FUNC
-# TODO: add EOS token??
+empty_tokens = Tokeniser()
 
 def main():
     in_folder = "./chorales/FB_source/musicXML_master"
     # original scores but without ineligible scores - use for muspy dataset
     filtered_folder = "filtered"
     out_folder = "added_FB"
+
+    test_folder = "test_scores"
     torch_save = "content/preprocessed.pt"
+    torch_test_save = "content/preprocessed_test.pt"
     token_save = "content/tokens.pkl"
     resolution = 8
 
@@ -279,12 +324,17 @@ def main():
     global m21_lyrics_folder
     m21_lyrics_folder = out_folder
 
-    convert_to_pytorch_dataset(filtered_folder, torch_save, resolution, split=True)
+    # split into train test dataset here - or, can manually move scores from a filtered folder to test folder
+    # this is done before train dataset but actual conversion done after train dataset
+    move_test_chorales(test_folder, filtered_folder, 3)
 
-    print(tokens.tokens)
+    create_pytorch_train_dataset(filtered_folder, torch_save,resolution, split=True)
+
+    print(empty_tokens.tokens)
     with open(token_save, "wb") as f:
-        pickle.dump(tokens.save(), f)
+        pickle.dump(empty_tokens.save(), f)
 
+    create_pytorch_test_dataset(test_folder, token_save, torch_test_save, m21_lyrics_folder, resolution, split=True)
     # file = "./chorales/FB_source/musicXML_master/BWV_248.59_FB.musicxml"
     # combine_bassvoice_accomp(file)
 

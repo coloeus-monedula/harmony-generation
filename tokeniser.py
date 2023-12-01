@@ -14,9 +14,11 @@ class Tokeniser:
 
         # add None token
         self.tokens["None"] = start_token
+        #add Unknown token since there's always possibility of unknown tokens showing up
+        self.tokens["Unknown"] = start_token + 1
 
         # next free number to assign an FB to
-        self.next = start_token + 1
+        self.next = start_token + 2
 
     def get(self, fb_string):
         return self.tokens.get(fb_string, self.tokens.get("Unknown"))
@@ -24,23 +26,15 @@ class Tokeniser:
     def add(self, fb_string):
         token = self.tokens.get(fb_string)
 
-        # unknown already added to dict
         if token is None and self.next > self.max_token:
             print("Maximum token number reached - encoding as Unknown")
             return self.tokens.get("Unknown")
-        elif token is None and self.next == self.max_token:
-            print("Maximum token number reached - encoding as Unknown (First time)")
-            self.tokens["Unknown"] = self.next
-            self.next +=1
-
-            return self.tokens.get("Unknown")
-
         elif token is None:
             self.tokens[fb_string] = self.next
             self.next +=1
 
             return self.tokens.get(fb_string)
-        
+        # if token already exists
         else:
             return token
         
@@ -59,7 +53,7 @@ class Tokeniser:
     def get_max_token(self):
         length = len(self.tokens)
 
-        # since start token is like index 0 of a 1-length array, hence -1 
+        # since single start token is like index 0 of a 1-length array, hence -1 
         return self.start_token + length - 1
     
 

@@ -47,6 +47,8 @@ class MuspyChoralesDataset(datasets.FolderDataset):
     def read(self, filename: Any) -> Music:
         return read_musicxml(filename, resolution=self.resolution)
     
+
+    # NOTE: BELOW FUNCTION DOESN'T WORK - KEPT FOR POSTERITY.
     # adds the rest of the figured bass lyrics to the bassline
     # can't rely on muspy's lyrics - seems to be a bug in there that sometimes causes duplication so we have to do it ourselves, and may as well do it in the tokenisation process :/
 
@@ -54,7 +56,6 @@ class MuspyChoralesDataset(datasets.FolderDataset):
     #  for all notes in part:
     # get duration of note in muspy timesteps and add to counter
     # if note 
-
     def complete_FB_lyrics(self, music21_lyrics: zip, filename):
         muspy_obj = self.get_by_filename(filename)
         print(muspy_obj.resolution)
