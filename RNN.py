@@ -8,6 +8,7 @@ import time, math
 from tokeniser import Tokeniser
 import dill as pickle
 from sklearn.metrics import accuracy_score
+import numpy as np
 
 is_cuda = torch.cuda.is_available()
 if is_cuda:
@@ -130,6 +131,7 @@ def time_since(since):
 def train(model:EncoderDecoder, loader:DataLoader, criterion:nn.CrossEntropyLoss, optimiser:torch.optim.Adam, hyperparameters):
 
     all_losses = []
+    all_accuracies = []
     start = time.time()
 
     for epoch in range(hyperparameters["n_epochs"]):
@@ -150,6 +152,10 @@ def train(model:EncoderDecoder, loader:DataLoader, criterion:nn.CrossEntropyLoss
             flattened_y = y.reshape(-1)
             loss =criterion(predicted, flattened_y)
 
+
+            preds_labels = torch.argmax(output, -1)
+            preds_labels = preds_labels.reshape(hyperparameters["batch_size"] * hyperparameters["output_num"])
+
             # backwards propagation
             loss.backward()
             optimiser.step()
@@ -157,18 +163,26 @@ def train(model:EncoderDecoder, loader:DataLoader, criterion:nn.CrossEntropyLoss
 
             total_loss += loss.item()
             num_rounds+=1
+            accuracy = accuracy_score(flattened_y.cpu().numpy(), preds_labels.cpu().numpy())
 
-        
         if epoch % hyperparameters["print_every"] == 0:
             print('Epoch: {}/{},'.format(epoch+1, hyperparameters["n_epochs"]), end=" ")
             print(time_since(start),end = "......................... ")
-            print("Loss: {:4f}".format(total_loss/num_rounds))
+            print("Loss: {:4f}".format(total_loss/num_rounds), end=", ")
+            print("Accuracy: {:4f}".format(accuracy))
 
         # add average loss per epoch across all batches to plot graph
         if epoch % hyperparameters["plot_every"] == 0:
             all_losses.append(total_loss/num_rounds)
+            all_accuracies.append(accuracy)
 
-    return all_losses
+    # average total loss at the end 
+    final_loss = total_loss/num_rounds
+
+    # return to cpu
+    model = model.cpu()
+
+    return model, final_loss, all_losses, all_accuracies
 
 
 # splits scores into individual timesteps to use with batch processing
@@ -186,22 +200,33 @@ def split_scores(dataset: SplitChorales) -> TensorDataset:
     return TensorDataset(all_x, all_y)
 
 # pad end of batch
-def pad(split_tensors):
-    modulo = len(split_tensors) % parameters["batch_size"]
-    to_pad = parameters["batch_size"] - modulo
-    total_padding_x = []
-    total_padding_y = []
-    for i in range(to_pad):
-        total_padding_x.append(torch.tensor([0,0,0]).long())
-        total_padding_y.append(torch.tensor([0,0,0,0,0,0]).long())
+def pad(split_tensors, batch_size):
+    modulo = len(split_tensors) % batch_size
+    to_pad = batch_size - modulo
 
-    total_padding_x = torch.stack(total_padding_x).long()
-    total_padding_y = torch.stack(total_padding_y).long()
+    total_padding_x, total_padding_y = pad_x(to_pad), pad_y(to_pad)
     
     total_padding = TensorDataset(total_padding_x, total_padding_y)
     split_tensors = split_tensors + total_padding
     return split_tensors
 
+def pad_x(to_pad, tensor = [0,0,0]):
+    total_padding_x = []
+    for i in range(to_pad):
+        total_padding_x.append(torch.tensor(tensor).long())
+
+    total_padding_x = torch.stack(total_padding_x).long()
+
+    return total_padding_x
+
+def pad_y(to_pad, tensor = [0,0,0,0,0,0]):
+    total_padding_y = []
+    for i in range(to_pad):
+        total_padding_y.append(torch.tensor(tensor).long())
+
+    total_padding_y = torch.stack(total_padding_y).long()
+
+    return total_padding_y
 
 # returns clean model and optimiser
 def get_new_model(token_path):
@@ -220,8 +245,9 @@ def get_new_model(token_path):
 
     # loss and optimiser
     optimiser = torch.optim.Adam(encode_decode.parameters(), lr = parameters["lr"])
+    criterion = nn.CrossEntropyLoss()
 
-    return encode_decode, optimiser
+    return encode_decode, optimiser, criterion
 
 
 def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hyperparameters):
@@ -233,6 +259,7 @@ def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hy
     output_size = hyperparameters["output_num"]
 
     dataset = TensorDataset(score[0], score[1])
+    dataset = pad(dataset, batch_size)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle = False)
 
     # TODO: if we want some randomness as to whether model uses true S,Acc,FB+1 vals or predicted S,Acc,FB+1 vals implement this here
@@ -271,9 +298,15 @@ def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hy
     return accuracy, join_score(score[0], generated_ATB)
 
 def join_score(x: torch.Tensor, y: torch.Tensor):
+
+    # adds padding to end of x if needed
+    if (len(x) != len(y)):
+        diff = len(y) - len(x)
+        padding = pad_x(diff)
+        x = torch.cat((x, padding))
+
     x = x.to(device)
     y = y.to(device)
-
     # NOTE: assumes S, Acc, FB order in x, and A, T, B order in y 
     s = x[:,0]
     acc = x[:,1]
@@ -285,7 +318,7 @@ def join_score(x: torch.Tensor, y: torch.Tensor):
 
     generated = torch.stack([s,a,t,b,acc,fb], dim = 1)
     # add a line of silence
-    silence = torch.tensor([[0,0,0,0,0,0]])
+    silence = torch.tensor([[0,0,0,0,0,0]]).to(device)
     generated = torch.cat((generated, silence)) 
 
     return generated
@@ -294,7 +327,8 @@ def join_score(x: torch.Tensor, y: torch.Tensor):
 # hyperparams and params
 parameters = {
     "lr": 0.01,
-    "n_epochs": 100,
+    # "n_epochs": 100,
+    "n_epochs": 20, #maximum number of epochs
     # measured in epoch numbers
     "plot_every" : 5,
     "print_every" : 10,
@@ -306,6 +340,7 @@ parameters = {
     "output_num": 6,
     "SOS_TOKEN": 129, #for the decoder
     "resolution": 8, #used for generation - should be how many items 1 timestep is encoded to
+    "iterations": 5, #number of models to run and then average
 }
 
 tokens = Tokeniser()
@@ -321,35 +356,31 @@ def main():
     path = "content/model.pt"
     token_path = "content/tokens.pkl"
     split = True
-    file = "content/preprocessed.pt"
+    train_file = "content/preprocessed.pt"
+    test_file = "content/preprocessed_test.pt"
 
     # TODO: make this the chorale name
     generated_path = "temp/generated.pt"
 
 
-    if split:
-        dataset = SplitChorales(file)
-    else:
-        # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
-        dataset = Chorales(file)
-
-    split_tensors = split_scores(dataset)
-    split_tensors = pad(split_tensors)
-
-    # shuffle = false since data is time contiguous + to learn when an end of piece is
-    loader = DataLoader(split_tensors, batch_size=parameters["batch_size"], shuffle=False)
-    model, optimiser = get_new_model(token_path)
-
     if eval:
         print("Evaluating model.")
-
-        # NOTE: to evaluate, need to remove test chorales from dataset
+        if split:
+            test_dataset = SplitChorales(test_file)
+        else:
+            # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
+            test_dataset = Chorales(test_file)
+        
+        model, optimiser, _ = get_new_model(token_path)
         checkpoint = torch.load(path, map_location=device)
         model.load_state_dict(checkpoint["model"])
         # optimiser.load_state_dict(checkpoint["optimiser"])
 
-        accuracy, generated = generate(model, dataset[0], parameters)
 
+        for i in range(len(test_dataset)):
+            accuracy, generated = generate(model, test_dataset[i], parameters)
+
+        # save last one for now
         generated = generated.cpu()
         torch.save(generated, generated_path)
 
@@ -359,15 +390,63 @@ def main():
 
     else:
         print("Training model.")
-        criterion = nn.CrossEntropyLoss()
+        if split:
+            dataset = SplitChorales(train_file)
+        else:
+            # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
+            dataset = Chorales(train_file)
+        
+        split_tensors = split_scores(dataset)
+        split_tensors = pad(split_tensors, parameters["batch_size"])
 
-        model.to(device)
-        train(model, loader, criterion, optimiser, parameters)
+        # shuffle = false since data is time contiguous + to learn when an end of piece is
+        loader = DataLoader(split_tensors, batch_size=parameters["batch_size"], shuffle=False)
 
-        # save model
+        results = []
+        iters = parameters["iterations"]
+
+        for i in range(iters):
+            print("Iteration {}.".format(i+1))
+            model, optimiser, criterion = get_new_model(token_path)
+            model.to(device)
+
+            result = train(model, loader, criterion, optimiser, parameters)
+            results.append(result)
+
+        # sort by order of increasing final loss
+        results.sort(key = lambda x: x[1] )
+
+        avg_final_loss = 0
+        avg_final_accuracy = 0
+        avg_length = int(parameters["n_epochs"]/parameters["plot_every"])
+
+        avg_losses = np.zeros(avg_length, dtype=np.float32)
+        avg_accuracies = np.zeros(avg_length, dtype=np.float32)
+
+
+        for i in range(len(results)):
+            model, final_loss, losses, accuracies = results[i]
+            avg_final_loss += final_loss
+            avg_final_accuracy += accuracies[-1]
+
+            avg_losses += losses
+            avg_accuracies += accuracies
+
+        avg_final_loss /= iters
+        avg_final_accuracy /=iters
+        avg_losses /= iters
+        avg_accuracies /= iters
+
+        print("Average final loss across {} iterations: {}".format(iters, avg_final_loss))
+        print("Average final accuracy across {} iterations: {}".format(iters, avg_final_accuracy))
+
+        # save model with lowest loss
+        # as well as average running losses and accuracies
         torch.save({
-            "model": model.state_dict(),
-            "optimiser": optimiser.state_dict(),
+            "model": results[0][0].state_dict(),
+            # "optimiser": optimiser.state_dict(),
+            "losses": avg_losses,
+            "accuracies": avg_accuracies
         }, path)
 
 
