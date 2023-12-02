@@ -62,13 +62,14 @@ class DecoderRNN(nn.Module):
     def __init__(self,  hidden_size, output_size, bidirectional, output_num = 6,  n_layers =1) -> None:
         super(DecoderRNN, self).__init__()
 
+        self.directions = 2 if bidirectional else 1
+
         self.output_num = output_num
         self.n_layers = n_layers
 
         self.embedding = nn.Embedding(output_size, hidden_size)
-        self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True, bidirectional=bidirectional)
-        self.directions = 2 if bidirectional else 1
-        self.linear = nn.Linear(hidden_size*self.directions, output_size)
+        self.rnn = nn.LSTM(hidden_size, self.directions*hidden_size, n_layers, batch_first=True)
+        self.linear = nn.Linear(hidden_size*self.directions*n_layers, output_size)
 
     def forward(self, encoder_outputs, encoder_hidden, target_tensor = None):
         batch_size = encoder_outputs.size(0)
@@ -83,7 +84,7 @@ class DecoderRNN(nn.Module):
         # process num_outputs columns at a time - typically, the 6 values we want
         # for the whole of the batch
         for i in range(self.output_num):
-            decoder_output, decoder_hidden = self.forward_step(decoder_input, decoder_hidden)
+            decoder_output, decoder_hidden = self.forward_step(decoder_input, decoder_hidden, batch_size)
             decoder_outputs.append(decoder_output)
 
             if target_tensor is not None:
@@ -101,10 +102,18 @@ class DecoderRNN(nn.Module):
         return decoder_outputs, decoder_hidden
     
     # for a single input - embed, rnn, use linear output layer
-    def forward_step(self, input, hidden):
+    def forward_step(self, input, hidden, batch_size):
         output = self.embedding(input)
         # NOTE: need to add relu? don't think so
-        output, hidden = self.rnn(output, hidden)
+
+        # if bidirectional will have two paths (forward and reverse) - concatenate and feed 
+        (h_n, c_n) = hidden
+        if self.directions == 2:
+            # concat code follows https://discuss.pytorch.org/t/how-to-concatenate-the-hidden-states-of-a-bi-lstm-with-multiple-layers/39798/2
+            h_n = h_n.transpose(1,0).contiguous().view(batch_size, -1).unsqueeze(dim=0)
+            c_n = c_n.transpose(1,0).contiguous().view(batch_size, -1).unsqueeze(dim=0)
+
+        output, hidden = self.rnn(output, (h_n, c_n))
         output = self.linear(output)
 
         return output, hidden
@@ -330,12 +339,12 @@ def join_score(x: torch.Tensor, y: torch.Tensor):
 parameters = {
     "lr": 0.01,
     # "n_epochs": 100,
-    "n_epochs": 101, #maximum number of epochs
+    "n_epochs": 201, #maximum number of epochs
     # measured in epoch numbers
     "plot_every" : 5,
     "print_every" : 10,
-    "batch_size": 32,
-    "hidden_size": 128,
+    "batch_size": 128,
+    "hidden_size": 256,
     #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
     # # possibly because 0 is also used as a token so off by 1
     # "input_size" : 252, 
