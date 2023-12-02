@@ -33,13 +33,14 @@ else:
 
 # encoder decoder structure follows https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html and supervisor code
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, n_layers = 1, dropout_p = 0.05) -> None:
+    def __init__(self, input_size, hidden_size,  bidirectional, n_layers = 1, dropout_p = 0.05,) -> None:
         super(EncoderRNN, self).__init__()
 
         # turn input into a hidden_size sized vector, use to try and learn relationship between pitches and FB notations 
         self.embedding = nn.Embedding(input_size, hidden_size)
 
-        self.rnn = nn.LSTM(hidden_size, hidden_size,num_layers= n_layers, batch_first=True)
+        self.rnn = nn.LSTM(hidden_size, hidden_size,num_layers= n_layers, batch_first=True, bidirectional=bidirectional)
+        self.directions = 2 if bidirectional else 1
         self.dropout = nn.Dropout(dropout_p)
 
     def forward(self, input):
@@ -58,15 +59,16 @@ class DecoderRNN(nn.Module):
 
     # output size typically equals encoder's input size
     # NOTE: "timesteps" are columns of output.
-    def __init__(self,  hidden_size, output_size, output_num = 6,  n_layers =1) -> None:
+    def __init__(self,  hidden_size, output_size, bidirectional, output_num = 6,  n_layers =1) -> None:
         super(DecoderRNN, self).__init__()
 
         self.output_num = output_num
         self.n_layers = n_layers
 
         self.embedding = nn.Embedding(output_size, hidden_size)
-        self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True)
-        self.linear = nn.Linear(hidden_size, output_size)
+        self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True, bidirectional=bidirectional)
+        self.directions = 2 if bidirectional else 1
+        self.linear = nn.Linear(hidden_size*self.directions, output_size)
 
     def forward(self, encoder_outputs, encoder_hidden, target_tensor = None):
         batch_size = encoder_outputs.size(0)
@@ -229,7 +231,7 @@ def pad_y(to_pad, tensor = [0,0,0,0,0,0]):
     return total_padding_y
 
 # returns clean model and optimiser
-def get_new_model(token_path):
+def get_new_model(token_path, bidirectional):
     # calculate input size dynamically by the tokeniser
     # add 1 since 0 is also used as a token to avoid out of index errors
     with open(token_path, "rb") as f:
@@ -239,8 +241,8 @@ def get_new_model(token_path):
     hidden_size = parameters["hidden_size"]
     output_num = parameters["output_num"]
 
-    encoder = EncoderRNN(input_size, hidden_size)
-    decoder = DecoderRNN(hidden_size, input_size, output_num=output_num)
+    encoder = EncoderRNN(input_size, hidden_size, bidirectional=bidirectional)
+    decoder = DecoderRNN(hidden_size, input_size, output_num=output_num, bidirectional=bidirectional)
     encode_decode = EncoderDecoder(encoder, decoder)
 
     # loss and optimiser
@@ -328,7 +330,7 @@ def join_score(x: torch.Tensor, y: torch.Tensor):
 parameters = {
     "lr": 0.01,
     # "n_epochs": 100,
-    "n_epochs": 20, #maximum number of epochs
+    "n_epochs": 101, #maximum number of epochs
     # measured in epoch numbers
     "plot_every" : 5,
     "print_every" : 10,
@@ -341,6 +343,7 @@ parameters = {
     "SOS_TOKEN": 129, #for the decoder
     "resolution": 8, #used for generation - should be how many items 1 timestep is encoded to
     "iterations": 5, #number of models to run and then average
+    "bidirectional":True
 }
 
 tokens = Tokeniser()
@@ -351,7 +354,7 @@ def main():
     # # input size should be = 3
 
     # args = parser.parse_args()
-    eval = True
+    eval = False
 
     path = "content/model.pt"
     token_path = "content/tokens.pkl"
@@ -371,7 +374,7 @@ def main():
             # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
             test_dataset = Chorales(test_file)
         
-        model, optimiser, _ = get_new_model(token_path)
+        model, optimiser, _ = get_new_model(token_path, parameters["bidirectional"])
         checkpoint = torch.load(path, map_location=device)
         model.load_state_dict(checkpoint["model"])
         # optimiser.load_state_dict(checkpoint["optimiser"])
@@ -407,7 +410,7 @@ def main():
 
         for i in range(iters):
             print("Iteration {}.".format(i+1))
-            model, optimiser, criterion = get_new_model(token_path)
+            model, optimiser, criterion = get_new_model(token_path, parameters["bidirectional"])
             model.to(device)
 
             result = train(model, loader, criterion, optimiser, parameters)
