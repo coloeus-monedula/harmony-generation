@@ -55,47 +55,34 @@ class EncoderRNN(nn.Module):
         return self.embedding(x)
 
 # Attention module based off
-# https://pytorch.org/tutorials/beginner/deploy_seq2seq_hybrid_frontend_tutorial.html#define-decoders-attention-module
-# uses Luong attention 
+# https://github.com/rawmarshmellows/pytorch-batch-luong-attention/blob/master/models/luong_attention/luong_attention.py
 class Attention(nn.Module):
-    def __init__(self, method, hidden_size):
-        super(Attention, self).__init__()
+    def __init__(self, method, hidden_size, directions):
+        super().__init__()
         self.method = method
-        if self.method not in ['dot', 'general', 'concat']:
-            raise ValueError(self.method, "is not an appropriate attention method.")
         self.hidden_size = hidden_size
+
         if self.method == 'general':
-            self.attn = nn.Linear(self.hidden_size, hidden_size)
+            self.attn = nn.Linear(directions*self.hidden_size, hidden_size)
         elif self.method == 'concat':
-            self.attn = nn.Linear(self.hidden_size * 2, hidden_size)
-            self.v = nn.Parameter(torch.FloatTensor(hidden_size))
+            self.attn = nn.Linear(directions*self.hidden_size * 2, hidden_size)
+            self.v = nn.Parameter(torch.FloatTensor(1, hidden_size))
 
-    def dot_score(self, hidden, encoder_output):
-        return torch.sum(hidden * encoder_output, dim=2)
+    def forward(self, decoder_output, encoder_outputs):
+        # for us, decoder output = batch size, 1, hidden size
+        # encoder_output = batch size, max input (default 3), hidden size
+        # change to = batch size, hidden, length
+        attn_energies = torch.bmm(self.attn(decoder_output), encoder_outputs.permute(0, 2, 1))
 
-    def general_score(self, hidden, encoder_output):
-        energy = self.attn(encoder_output)
-        return torch.sum(hidden * energy, dim=2)
+        # Batch size, 1, max input length
+        return nn.functional.softmax(attn_energies, dim = -1)
 
-    def concat_score(self, hidden, encoder_output):
-        energy = self.attn(torch.cat((hidden.expand(encoder_output.size(0), -1, -1), encoder_output), 2)).tanh()
-        return torch.sum(self.v * energy, dim=2)
+    def score(self, hidden, encoder_output):
 
-    def forward(self, hidden, encoder_outputs):
-        # calculate attention weights/energies based off given method
         if self.method == 'general':
-            attn_energies = self.general_score(hidden, encoder_outputs)
-        elif self.method == 'concat':
-            attn_energies = self.concat_score(hidden, encoder_outputs)
-        elif self.method == 'dot':
-            attn_energies = self.dot_score(hidden, encoder_outputs)
-
-        print(attn_energies.shape)
-        # transpose max_length and batch_size dimensions
-        # attn_energies = attn_energies.t()
-
-        # softmax normalized probability scores (with added dimension)
-        return nn.functional.softmax(attn_energies, dim=1).unsqueeze(1)
+            energy = self.attn(encoder_output).view(-1)
+            energy = hidden.view(-1).dot(energy)
+            return energy
     
 
 class DecoderRNN(nn.Module):
@@ -114,8 +101,9 @@ class DecoderRNN(nn.Module):
         self.rnn = nn.LSTM(hidden_size, self.directions*hidden_size, n_layers, batch_first=True)
         self.dropout = nn.Dropout(dropout_p)
 
-        self.attention = Attention(attention_model, hidden_size)
-        self.concat = nn.Linear(hidden_size, hidden_size)
+        if attention_model is not None:
+            self.attention = Attention(attention_model, hidden_size, self.directions)
+            self.concat = nn.Linear(2*hidden_size, hidden_size)
 
         self.linear = nn.Linear(hidden_size*self.directions*n_layers, output_size)
         
@@ -133,7 +121,7 @@ class DecoderRNN(nn.Module):
         # process num_outputs columns at a time - typically, the 6 values we want
         # for the whole of the batch
         for i in range(self.output_num):
-            decoder_output, decoder_hidden = self.forward_step(decoder_input, decoder_hidden, batch_size, encoder_outputs)
+            decoder_output, decoder_hidden, attention_weights = self.forward_step(decoder_input, decoder_hidden, batch_size, encoder_outputs)
             decoder_outputs.append(decoder_output)
 
             if target_tensor is not None:
@@ -148,11 +136,13 @@ class DecoderRNN(nn.Module):
 
         decoder_outputs = torch.cat(decoder_outputs, dim=1)
 
-        return decoder_outputs, decoder_hidden
+        return decoder_outputs, decoder_hidden, attention_weights
     
     # for a single input - embed, rnn, use linear output layer
     def forward_step(self, input, hidden, batch_size, encoder_outputs):
-        output = self.dropout(self.embedding(input))
+        output = self.embedding(input)
+        if hasattr(self, "attention"):
+            output = self.dropout(output)
 
         # if bidirectional will have two paths (forward and reverse) - concatenate and feed 
         (h_n, c_n) = hidden
@@ -162,28 +152,27 @@ class DecoderRNN(nn.Module):
             c_n = c_n.transpose(1,0).contiguous().view(batch_size, -1).unsqueeze(dim=0)
 
         output, hidden = self.rnn(output, (h_n, c_n))
+        if hasattr(self, "attention"):
+            # attention weight calculations from current rnn output
+            weights:torch.Tensor = self.attention(output, encoder_outputs)
 
-        # attention weight calculations from current rnn output
-        weights:torch.Tensor = self.attention(output, encoder_outputs)
+            # new weighted sum context = weights * encoder outputs
+            # [batch_size, 1, max input length] @ [batch_size, max input length, hidden size]
+            context = weights.bmm(encoder_outputs).squeeze(1)
 
-        print(weights.shape)
-        # print(encoder_outputs.shape)
-        # print(output.shape)
-        # new weighted sum context = weights * encoder outputs
-        # TODO: want context to have [batch , hidden size], currently has [3, hidden size] 
-        context = weights.bmm(encoder_outputs).squeeze(1)
-        # remove sequence length at index 1, since batch_first = true
-        output = output.squeeze(1)
-        print(context.shape)
-        print(output.shape)
+            # remove sequence length at index 1, since batch_first = true
+            output = output.squeeze(1)
 
-        concat_input = torch.cat((output, context), 0)
-        print(concat_input.shape)
-        concat_output = torch.tanh(self.concat(concat_input))
+            concat_input = torch.cat((output, context), 1)
+            concat_output = torch.tanh(self.concat(concat_input))
 
-        new_output = self.linear(concat_output)
+            # predict next token
+            final_output = self.linear(concat_output)
+        else:
+            weights = None
+            final_output = self.linear(output)
 
-        return new_output, hidden
+        return final_output, hidden, weights
 
     def get_embedding(self, x):
         return self.embedding(x)
@@ -196,8 +185,8 @@ class EncoderDecoder(nn.Module):
 
     def forward(self, x, y):
         encode_out, encode_hid = self.encoder(x)
-        decode_out, decode_hid = self.decoder(encode_out, encode_hid, y)
-        return decode_out, decode_hid
+        decode_out, decode_hid, attention_weights = self.decoder(encode_out, encode_hid, y)
+        return decode_out, decode_hid, attention_weights
 
 def time_since(since):
     now = time.time()
@@ -222,7 +211,7 @@ def train(model:EncoderDecoder, loader:DataLoader, criterion:nn.CrossEntropyLoss
         for x, y in loader:
             x, y = x.to(device), y.to(device)
 
-            output, hidden =  model(x, y)
+            output, hidden, _ =  model(x, y)
 
             # [batch size, num outputs, output size/classes] -> [batch size x num outputs, classes]
             predicted = output.reshape(hyperparameters["batch_size"] * hyperparameters["output_num"], -1)
@@ -419,9 +408,9 @@ parameters = {
     "SOS_TOKEN": 129, #for the decoder
     "resolution": 8, #used for generation - should be how many items 1 timestep is encoded to
     "iterations": 5, #number of models to run and then average
-    "bidirectional":False,
-    "attention_model": "general",
     "dropout": 0.1,
+    "bidirectional":True,
+    "attention_model": None,
 }
 
 tokens = Tokeniser()
