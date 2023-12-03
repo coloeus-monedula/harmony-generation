@@ -63,16 +63,19 @@ class Attention(nn.Module):
         self.hidden_size = hidden_size
 
         if self.method == 'general':
-            self.attn = nn.Linear(directions*self.hidden_size, hidden_size)
+            self.attn = nn.Linear(self.hidden_size, directions*self.hidden_size)
         elif self.method == 'concat':
-            self.attn = nn.Linear(directions*self.hidden_size * 2, hidden_size)
+            self.attn = nn.Linear(self.hidden_size * 2, hidden_size)
             self.v = nn.Parameter(torch.FloatTensor(1, hidden_size))
 
     def forward(self, decoder_output, encoder_outputs):
         # for us, decoder output = batch size, 1, hidden size
         # encoder_output = batch size, max input (default 3), hidden size
         # change to = batch size, hidden, length
+
+        # print(decoder_output.shape, encoder_outputs.shape)
         attn_energies = torch.bmm(self.attn(decoder_output), encoder_outputs.permute(0, 2, 1))
+
 
         # Batch size, 1, max input length
         return nn.functional.softmax(attn_energies, dim = -1)
@@ -99,6 +102,7 @@ class DecoderRNN(nn.Module):
 
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.rnn = nn.LSTM(hidden_size, self.directions*hidden_size, n_layers, batch_first=True)
+        # self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True)
         self.dropout = nn.Dropout(dropout_p)
 
         if attention_model is not None:
@@ -154,6 +158,7 @@ class DecoderRNN(nn.Module):
         output, hidden = self.rnn(output, (h_n, c_n))
         if hasattr(self, "attention"):
             # attention weight calculations from current rnn output
+            # print(output.shape, encoder_outputs.shape)
             weights:torch.Tensor = self.attention(output, encoder_outputs)
 
             # new weighted sum context = weights * encoder outputs
@@ -167,7 +172,8 @@ class DecoderRNN(nn.Module):
             concat_output = torch.tanh(self.concat(concat_input))
 
             # predict next token
-            final_output = self.linear(concat_output)
+            # unsqueeze to get [batch size, seq length, hidden size] format
+            final_output = self.linear(concat_output).unsqueeze(1)
         else:
             weights = None
             final_output = self.linear(output)
@@ -218,7 +224,6 @@ def train(model:EncoderDecoder, loader:DataLoader, criterion:nn.CrossEntropyLoss
             # flattens 
             flattened_y = y.reshape(-1)
             loss =criterion(predicted, flattened_y)
-
 
             preds_labels = torch.argmax(output, -1)
             preds_labels = preds_labels.reshape(hyperparameters["batch_size"] * hyperparameters["output_num"])
@@ -409,8 +414,8 @@ parameters = {
     "resolution": 8, #used for generation - should be how many items 1 timestep is encoded to
     "iterations": 5, #number of models to run and then average
     "dropout": 0.1,
-    "bidirectional":True,
-    "attention_model": None,
+    "bidirectional":False,
+    "attention_model": 'general',
 }
 
 tokens = Tokeniser()
