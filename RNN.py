@@ -54,12 +54,55 @@ class EncoderRNN(nn.Module):
     def get_embedding(self, x):
         return self.embedding(x)
 
+# Attention module based off
+# https://pytorch.org/tutorials/beginner/deploy_seq2seq_hybrid_frontend_tutorial.html#define-decoders-attention-module
+# uses Luong attention 
+class Attention(nn.Module):
+    def __init__(self, method, hidden_size):
+        super(Attention, self).__init__()
+        self.method = method
+        if self.method not in ['dot', 'general', 'concat']:
+            raise ValueError(self.method, "is not an appropriate attention method.")
+        self.hidden_size = hidden_size
+        if self.method == 'general':
+            self.attn = nn.Linear(self.hidden_size, hidden_size)
+        elif self.method == 'concat':
+            self.attn = nn.Linear(self.hidden_size * 2, hidden_size)
+            self.v = nn.Parameter(torch.FloatTensor(hidden_size))
+
+    def dot_score(self, hidden, encoder_output):
+        return torch.sum(hidden * encoder_output, dim=2)
+
+    def general_score(self, hidden, encoder_output):
+        energy = self.attn(encoder_output)
+        return torch.sum(hidden * energy, dim=2)
+
+    def concat_score(self, hidden, encoder_output):
+        energy = self.attn(torch.cat((hidden.expand(encoder_output.size(0), -1, -1), encoder_output), 2)).tanh()
+        return torch.sum(self.v * energy, dim=2)
+
+    def forward(self, hidden, encoder_outputs):
+        # calculate attention weights/energies based off given method
+        if self.method == 'general':
+            attn_energies = self.general_score(hidden, encoder_outputs)
+        elif self.method == 'concat':
+            attn_energies = self.concat_score(hidden, encoder_outputs)
+        elif self.method == 'dot':
+            attn_energies = self.dot_score(hidden, encoder_outputs)
+
+        print(attn_energies.shape)
+        # transpose max_length and batch_size dimensions
+        # attn_energies = attn_energies.t()
+
+        # softmax normalized probability scores (with added dimension)
+        return nn.functional.softmax(attn_energies, dim=1).unsqueeze(1)
+    
 
 class DecoderRNN(nn.Module):
 
     # output size typically equals encoder's input size
     # NOTE: "timesteps" are columns of output.
-    def __init__(self,  hidden_size, output_size, bidirectional, output_num = 6,  n_layers =1) -> None:
+    def __init__(self,  hidden_size, output_size, bidirectional, attention_model, output_num = 6,  n_layers =1, dropout_p = 0.1) -> None:
         super(DecoderRNN, self).__init__()
 
         self.directions = 2 if bidirectional else 1
@@ -69,7 +112,13 @@ class DecoderRNN(nn.Module):
 
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.rnn = nn.LSTM(hidden_size, self.directions*hidden_size, n_layers, batch_first=True)
+        self.dropout = nn.Dropout(dropout_p)
+
+        self.attention = Attention(attention_model, hidden_size)
+        self.concat = nn.Linear(hidden_size, hidden_size)
+
         self.linear = nn.Linear(hidden_size*self.directions*n_layers, output_size)
+        
 
     def forward(self, encoder_outputs, encoder_hidden, target_tensor = None):
         batch_size = encoder_outputs.size(0)
@@ -84,7 +133,7 @@ class DecoderRNN(nn.Module):
         # process num_outputs columns at a time - typically, the 6 values we want
         # for the whole of the batch
         for i in range(self.output_num):
-            decoder_output, decoder_hidden = self.forward_step(decoder_input, decoder_hidden, batch_size)
+            decoder_output, decoder_hidden = self.forward_step(decoder_input, decoder_hidden, batch_size, encoder_outputs)
             decoder_outputs.append(decoder_output)
 
             if target_tensor is not None:
@@ -102,9 +151,8 @@ class DecoderRNN(nn.Module):
         return decoder_outputs, decoder_hidden
     
     # for a single input - embed, rnn, use linear output layer
-    def forward_step(self, input, hidden, batch_size):
-        output = self.embedding(input)
-        # NOTE: need to add relu? don't think so
+    def forward_step(self, input, hidden, batch_size, encoder_outputs):
+        output = self.dropout(self.embedding(input))
 
         # if bidirectional will have two paths (forward and reverse) - concatenate and feed 
         (h_n, c_n) = hidden
@@ -114,9 +162,28 @@ class DecoderRNN(nn.Module):
             c_n = c_n.transpose(1,0).contiguous().view(batch_size, -1).unsqueeze(dim=0)
 
         output, hidden = self.rnn(output, (h_n, c_n))
-        output = self.linear(output)
 
-        return output, hidden
+        # attention weight calculations from current rnn output
+        weights:torch.Tensor = self.attention(output, encoder_outputs)
+
+        print(weights.shape)
+        # print(encoder_outputs.shape)
+        # print(output.shape)
+        # new weighted sum context = weights * encoder outputs
+        # TODO: want context to have [batch , hidden size], currently has [3, hidden size] 
+        context = weights.bmm(encoder_outputs).squeeze(1)
+        # remove sequence length at index 1, since batch_first = true
+        output = output.squeeze(1)
+        print(context.shape)
+        print(output.shape)
+
+        concat_input = torch.cat((output, context), 0)
+        print(concat_input.shape)
+        concat_output = torch.tanh(self.concat(concat_input))
+
+        new_output = self.linear(concat_output)
+
+        return new_output, hidden
 
     def get_embedding(self, x):
         return self.embedding(x)
@@ -240,7 +307,7 @@ def pad_y(to_pad, tensor = [0,0,0,0,0,0]):
     return total_padding_y
 
 # returns clean model and optimiser
-def get_new_model(token_path, bidirectional):
+def get_new_model(token_path, bidirectional, attention_model):
     # calculate input size dynamically by the tokeniser
     # add 1 since 0 is also used as a token to avoid out of index errors
     with open(token_path, "rb") as f:
@@ -251,7 +318,7 @@ def get_new_model(token_path, bidirectional):
     output_num = parameters["output_num"]
 
     encoder = EncoderRNN(input_size, hidden_size, bidirectional=bidirectional)
-    decoder = DecoderRNN(hidden_size, input_size, output_num=output_num, bidirectional=bidirectional)
+    decoder = DecoderRNN(hidden_size, input_size, output_num=output_num, bidirectional=bidirectional, attention_model=attention_model)
     encode_decode = EncoderDecoder(encoder, decoder)
 
     # loss and optimiser
@@ -343,7 +410,7 @@ parameters = {
     # measured in epoch numbers
     "plot_every" : 5,
     "print_every" : 10,
-    "batch_size": 128,
+    "batch_size": 64,
     "hidden_size": 256,
     #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
     # # possibly because 0 is also used as a token so off by 1
@@ -352,7 +419,9 @@ parameters = {
     "SOS_TOKEN": 129, #for the decoder
     "resolution": 8, #used for generation - should be how many items 1 timestep is encoded to
     "iterations": 5, #number of models to run and then average
-    "bidirectional":True
+    "bidirectional":False,
+    "attention_model": "general",
+    "dropout": 0.1,
 }
 
 tokens = Tokeniser()
@@ -419,7 +488,7 @@ def main():
 
         for i in range(iters):
             print("Iteration {}.".format(i+1))
-            model, optimiser, criterion = get_new_model(token_path, parameters["bidirectional"])
+            model, optimiser, criterion = get_new_model(token_path, parameters["bidirectional"], parameters["attention_model"])
             model.to(device)
 
             result = train(model, loader, criterion, optimiser, parameters)
@@ -449,9 +518,6 @@ def main():
         avg_losses /= iters
         avg_accuracies /= iters
 
-        print("Average final loss across {} iterations: {}".format(iters, avg_final_loss))
-        print("Average final accuracy across {} iterations: {}".format(iters, avg_final_accuracy))
-
         # save model with lowest loss
         # as well as average running losses and accuracies
         torch.save({
@@ -460,6 +526,10 @@ def main():
             "losses": avg_losses,
             "accuracies": avg_accuracies
         }, path)
+
+        print("Average final loss across {} iterations: {}".format(iters, avg_final_loss))
+        print("Average final accuracy across {} iterations: {}".format(iters, avg_final_accuracy))
+
 
 
 
