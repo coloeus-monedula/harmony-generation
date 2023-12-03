@@ -79,17 +79,13 @@ class EncoderRNN(nn.Module):
 
 # Attention module based off
 # https://github.com/rawmarshmellows/pytorch-batch-luong-attention/blob/master/models/luong_attention/luong_attention.py
-class Attention(nn.Module):
-    def __init__(self, method, hidden_size):
+# General Luong attention
+class LuongAttention(nn.Module):
+    def __init__(self,hidden_size):
         super().__init__()
-        self.method = method
         self.hidden_size = hidden_size
 
-        if self.method == 'general':
-            self.attn = nn.Linear(self.hidden_size, self.hidden_size)
-        elif self.method == 'concat':
-            self.attn = nn.Linear(self.hidden_size * 2, hidden_size)
-            self.v = nn.Parameter(torch.FloatTensor(1, hidden_size))
+        self.attn = nn.Linear(self.hidden_size, self.hidden_size)
 
     def forward(self, decoder_output, encoder_outputs):
         # for us, decoder output = batch size, 1, hidden size
@@ -103,12 +99,31 @@ class Attention(nn.Module):
         return nn.functional.softmax(attn_energies, dim = -1)
 
     def score(self, hidden, encoder_output):
+        energy = self.attn(encoder_output).view(-1)
+        energy = hidden.view(-1).dot(energy)
+        return energy
 
-        if self.method == 'general':
-            energy = self.attn(encoder_output).view(-1)
-            energy = hidden.view(-1).dot(energy)
-            return energy
     
+# https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html#attention-decoder
+# bahdanau attention based off above
+class BahdanauAttention(nn.Module):
+    def __init__(self, hidden_size):
+        super(BahdanauAttention, self).__init__()
+        self.Wa = nn.Linear(hidden_size, hidden_size)
+        self.Ua = nn.Linear(hidden_size, hidden_size)
+        self.Va = nn.Linear(hidden_size, 1)
+
+    # query = last decoder hidden state, (batch, layers, hidden size)
+    # keys = set of encoder outputs
+    def forward(self, query, keys):
+
+        scores = self.Va(torch.tanh(self.Wa(query) + self.Ua(keys)))
+        scores = scores.squeeze(2).unsqueeze(1)
+
+        weights = nn.functional.softmax(scores, dim=-1)
+        context = torch.bmm(weights, keys)
+
+        return context, weights
 
 class DecoderRNN(nn.Module):
 
@@ -122,14 +137,19 @@ class DecoderRNN(nn.Module):
         self.n_layers = n_layers
 
         self.embedding = nn.Embedding(output_size, hidden_size)
-        self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True)
-        # self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True)
+        if attention_model == "bahdanau":
+            self.rnn = nn.LSTM(hidden_size*2, hidden_size, n_layers, batch_first=True)
+        else:
+            self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True)
         self.dropout = nn.Dropout(dropout_p)
 
-        if attention_model is not None:
-            self.attention = Attention(attention_model, hidden_size)
+        if attention_model == "luong":
+            self.attention = LuongAttention(hidden_size)
             self.concat = nn.Linear(2*hidden_size, hidden_size)
+        elif attention_model == "bahdanau":
+            self.attention = BahdanauAttention(hidden_size)
 
+        self.attention_model = attention_model
         self.linear = nn.Linear(hidden_size*n_layers, output_size)
         
 
@@ -142,12 +162,15 @@ class DecoderRNN(nn.Module):
         # context vector from encoder used as initial hidden state
         decoder_hidden = encoder_hidden
         decoder_outputs = []
+        attentions = []
 
         # process num_outputs columns at a time - typically, the 6 values we want
         # for the whole of the batch
         for i in range(self.output_num):
             decoder_output, decoder_hidden, attention_weights = self.forward_step(decoder_input, decoder_hidden, encoder_outputs)
+
             decoder_outputs.append(decoder_output)
+            attentions.append(attention_weights)
 
             if target_tensor is not None:
                 # feed target as next input/column 
@@ -160,8 +183,12 @@ class DecoderRNN(nn.Module):
 
 
         decoder_outputs = torch.cat(decoder_outputs, dim=1)
-
-        return decoder_outputs, decoder_hidden, attention_weights
+        if self.attention_model is not None:
+            attentions = torch.cat(attentions, dim = 1)
+            return decoder_outputs, decoder_hidden, attentions
+        
+        else:
+            return decoder_outputs, decoder_hidden, None
     
     # for a single input - embed, rnn, use linear output layer
     def forward_step(self, input, hidden, encoder_outputs):
@@ -169,11 +196,18 @@ class DecoderRNN(nn.Module):
         if hasattr(self, "attention"):
             output = self.dropout(output)
 
+        if self.attention_model == "bahdanau":#
+            # since hidden is a tuple
+            # length, batch, hidden -> batch, length, hidden
+            query = hidden[0].permute(1,0,2)
+
+            context, attn_weights = self.attention(query, encoder_outputs)
+            output = torch.cat((output, context), dim = 2)
+
 
         output, hidden = self.rnn(output, hidden)
-        if hasattr(self, "attention"):
+        if self.attention_model == "luong":
             # attention weight calculations from current rnn output
-            # print(output.shape, encoder_outputs.shape)
             weights:torch.Tensor = self.attention(output, encoder_outputs)
 
             # new weighted sum context = weights * encoder outputs
@@ -189,6 +223,9 @@ class DecoderRNN(nn.Module):
             # predict next token
             # unsqueeze to get [batch size, seq length, hidden size] format
             final_output = self.linear(concat_output).unsqueeze(1)
+        elif self.attention_model == "bahdanau":
+            weights = attn_weights
+            final_output = self.linear(output)
         else:
             weights = None
             final_output = self.linear(output)
@@ -415,11 +452,11 @@ def join_score(x: torch.Tensor, y: torch.Tensor):
 parameters = {
     "lr": 0.01,
     # "n_epochs": 100,
-    "n_epochs": 201, #maximum number of epochs
+    "n_epochs": 11, #maximum number of epochs
     # measured in epoch numbers
     "plot_every" : 5,
     "print_every" : 10,
-    "batch_size": 128,
+    "batch_size": 64,
     "hidden_size": 256,
     #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
     # # possibly because 0 is also used as a token so off by 1
@@ -430,7 +467,7 @@ parameters = {
     "iterations": 5, #number of models to run and then average
     "dropout": 0.1,
     "bidirectional":True,
-    "attention_model": 'concat',
+    "attention_model": 'bahdanau', # or bahdanau, or None
 }
 
 tokens = Tokeniser()
