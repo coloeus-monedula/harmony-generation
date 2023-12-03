@@ -43,7 +43,6 @@ class EncoderRNN(nn.Module):
         # turn input into a hidden_size sized vector, use to try and learn relationship between pitches and FB notations 
         self.embedding = nn.Embedding(input_size, hidden_size)
         self.rnn = nn.LSTM(hidden_size, hidden_size,num_layers= n_layers, batch_first=True, bidirectional=bidirectional)
-        self.directions = 2 if bidirectional else 1
         self.dropout = nn.Dropout(dropout_p)
 
     def forward(self, input):
@@ -81,7 +80,7 @@ class EncoderRNN(nn.Module):
 # Attention module based off
 # https://github.com/rawmarshmellows/pytorch-batch-luong-attention/blob/master/models/luong_attention/luong_attention.py
 class Attention(nn.Module):
-    def __init__(self, method, hidden_size, directions):
+    def __init__(self, method, hidden_size):
         super().__init__()
         self.method = method
         self.hidden_size = hidden_size
@@ -97,7 +96,6 @@ class Attention(nn.Module):
         # encoder_output = batch size, max input (default 3), hidden size
         # change to = batch size, hidden, length
 
-        # print(decoder_output.shape, encoder_outputs.shape)
         attn_energies = torch.bmm(self.attn(decoder_output), encoder_outputs.permute(0, 2, 1))
 
 
@@ -116,10 +114,9 @@ class DecoderRNN(nn.Module):
 
     # output size typically equals encoder's input size
     # NOTE: "timesteps" are columns of output.
-    def __init__(self,  hidden_size, output_size, bidirectional, attention_model, output_num = 6,  n_layers =1, dropout_p = 0.1) -> None:
+    def __init__(self,  hidden_size, output_size, attention_model, output_num = 6,  n_layers =1, dropout_p = 0.1) -> None:
         super(DecoderRNN, self).__init__()
 
-        self.directions = 2 if bidirectional else 1
 
         self.output_num = output_num
         self.n_layers = n_layers
@@ -130,7 +127,7 @@ class DecoderRNN(nn.Module):
         self.dropout = nn.Dropout(dropout_p)
 
         if attention_model is not None:
-            self.attention = Attention(attention_model, hidden_size, self.directions)
+            self.attention = Attention(attention_model, hidden_size)
             self.concat = nn.Linear(2*hidden_size, hidden_size)
 
         self.linear = nn.Linear(hidden_size*n_layers, output_size)
@@ -149,7 +146,7 @@ class DecoderRNN(nn.Module):
         # process num_outputs columns at a time - typically, the 6 values we want
         # for the whole of the batch
         for i in range(self.output_num):
-            decoder_output, decoder_hidden, attention_weights = self.forward_step(decoder_input, decoder_hidden, batch_size, encoder_outputs)
+            decoder_output, decoder_hidden, attention_weights = self.forward_step(decoder_input, decoder_hidden, encoder_outputs)
             decoder_outputs.append(decoder_output)
 
             if target_tensor is not None:
@@ -167,19 +164,13 @@ class DecoderRNN(nn.Module):
         return decoder_outputs, decoder_hidden, attention_weights
     
     # for a single input - embed, rnn, use linear output layer
-    def forward_step(self, input, hidden, batch_size, encoder_outputs):
+    def forward_step(self, input, hidden, encoder_outputs):
         output = self.embedding(input)
         if hasattr(self, "attention"):
             output = self.dropout(output)
 
-        # if bidirectional will have two paths (forward and reverse) - concatenate and feed 
-        (h_n, c_n) = hidden
-        # if self.directions == 2:
-        #     # concat code follows https://discuss.pytorch.org/t/how-to-concatenate-the-hidden-states-of-a-bi-lstm-with-multiple-layers/39798/2
-        #     h_n = h_n.transpose(1,0).contiguous().view(batch_size, -1).unsqueeze(dim=0)
-        #     c_n = c_n.transpose(1,0).contiguous().view(batch_size, -1).unsqueeze(dim=0)
 
-        output, hidden = self.rnn(output, (h_n, c_n))
+        output, hidden = self.rnn(output, hidden)
         if hasattr(self, "attention"):
             # attention weight calculations from current rnn output
             # print(output.shape, encoder_outputs.shape)
@@ -336,7 +327,7 @@ def get_new_model(token_path, bidirectional, attention_model):
     output_num = parameters["output_num"]
 
     encoder = EncoderRNN(input_size, hidden_size, bidirectional=bidirectional)
-    decoder = DecoderRNN(hidden_size, input_size, output_num=output_num, bidirectional=bidirectional, attention_model=attention_model)
+    decoder = DecoderRNN(hidden_size, input_size, output_num=output_num, attention_model=attention_model)
     encode_decode = EncoderDecoder(encoder, decoder)
 
     # loss and optimiser
@@ -428,7 +419,7 @@ parameters = {
     # measured in epoch numbers
     "plot_every" : 5,
     "print_every" : 10,
-    "batch_size": 64,
+    "batch_size": 128,
     "hidden_size": 256,
     #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
     # # possibly because 0 is also used as a token so off by 1
@@ -439,7 +430,7 @@ parameters = {
     "iterations": 5, #number of models to run and then average
     "dropout": 0.1,
     "bidirectional":True,
-    "attention_model": 'general',
+    "attention_model": 'concat',
 }
 
 tokens = Tokeniser()
@@ -470,7 +461,7 @@ def main():
             # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
             test_dataset = Chorales(test_file)
         
-        model, optimiser, _ = get_new_model(token_path, parameters["bidirectional"])
+        model, optimiser, _ = get_new_model(token_path, parameters["bidirectional"], parameters["attention_model"])
         checkpoint = torch.load(path, map_location=device)
         model.load_state_dict(checkpoint["model"])
         # optimiser.load_state_dict(checkpoint["optimiser"])
