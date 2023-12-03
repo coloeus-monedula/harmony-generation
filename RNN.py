@@ -32,13 +32,16 @@ else:
 
 
 # encoder decoder structure follows https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html and supervisor code
+# NOTE: allows for n_layers > 1 but doesn't necessary work with it
 class EncoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size,  bidirectional, n_layers = 1, dropout_p = 0.05,) -> None:
         super(EncoderRNN, self).__init__()
 
+        self.hidden_size = hidden_size
+        self.bidirectional = bidirectional
+        self.n_layers = n_layers
         # turn input into a hidden_size sized vector, use to try and learn relationship between pitches and FB notations 
         self.embedding = nn.Embedding(input_size, hidden_size)
-
         self.rnn = nn.LSTM(hidden_size, hidden_size,num_layers= n_layers, batch_first=True, bidirectional=bidirectional)
         self.directions = 2 if bidirectional else 1
         self.dropout = nn.Dropout(dropout_p)
@@ -48,7 +51,28 @@ class EncoderRNN(nn.Module):
         embedded = self.dropout(embedded)
         output, hidden = self.rnn(embedded)
 
-        return output, hidden
+
+        if (self.bidirectional):
+            # sum forward and backwards output and hidden states together
+            # to work with Attention
+            output = output[:,:,:self.hidden_size] + output[:,:,self.hidden_size:]
+
+            hidden_layers = []
+            cell_layers = []
+            for i in range(self.n_layers):
+                # add forwards and backwards state in pairs
+                (h_n, c_n) = hidden
+                concat_h = (h_n[i*2, :, :] + h_n[i*2 + 1,:,:]).unsqueeze(0)
+                concat_c = (c_n[i*2, :, :] + c_n[i*2 + 1,:,:]).unsqueeze(0)
+
+                hidden_layers.append(concat_h)
+                cell_layers.append(concat_c)
+
+            return output, (torch.cat(hidden_layers,0), torch.cat(cell_layers, 0))
+
+        else:
+
+            return output, hidden
     
     # check embedding
     def get_embedding(self, x):
@@ -63,7 +87,7 @@ class Attention(nn.Module):
         self.hidden_size = hidden_size
 
         if self.method == 'general':
-            self.attn = nn.Linear(self.hidden_size, directions*self.hidden_size)
+            self.attn = nn.Linear(self.hidden_size, self.hidden_size)
         elif self.method == 'concat':
             self.attn = nn.Linear(self.hidden_size * 2, hidden_size)
             self.v = nn.Parameter(torch.FloatTensor(1, hidden_size))
@@ -101,7 +125,7 @@ class DecoderRNN(nn.Module):
         self.n_layers = n_layers
 
         self.embedding = nn.Embedding(output_size, hidden_size)
-        self.rnn = nn.LSTM(hidden_size, self.directions*hidden_size, n_layers, batch_first=True)
+        self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True)
         # self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True)
         self.dropout = nn.Dropout(dropout_p)
 
@@ -109,7 +133,7 @@ class DecoderRNN(nn.Module):
             self.attention = Attention(attention_model, hidden_size, self.directions)
             self.concat = nn.Linear(2*hidden_size, hidden_size)
 
-        self.linear = nn.Linear(hidden_size*self.directions*n_layers, output_size)
+        self.linear = nn.Linear(hidden_size*n_layers, output_size)
         
 
     def forward(self, encoder_outputs, encoder_hidden, target_tensor = None):
@@ -150,10 +174,10 @@ class DecoderRNN(nn.Module):
 
         # if bidirectional will have two paths (forward and reverse) - concatenate and feed 
         (h_n, c_n) = hidden
-        if self.directions == 2:
-            # concat code follows https://discuss.pytorch.org/t/how-to-concatenate-the-hidden-states-of-a-bi-lstm-with-multiple-layers/39798/2
-            h_n = h_n.transpose(1,0).contiguous().view(batch_size, -1).unsqueeze(dim=0)
-            c_n = c_n.transpose(1,0).contiguous().view(batch_size, -1).unsqueeze(dim=0)
+        # if self.directions == 2:
+        #     # concat code follows https://discuss.pytorch.org/t/how-to-concatenate-the-hidden-states-of-a-bi-lstm-with-multiple-layers/39798/2
+        #     h_n = h_n.transpose(1,0).contiguous().view(batch_size, -1).unsqueeze(dim=0)
+        #     c_n = c_n.transpose(1,0).contiguous().view(batch_size, -1).unsqueeze(dim=0)
 
         output, hidden = self.rnn(output, (h_n, c_n))
         if hasattr(self, "attention"):
@@ -414,7 +438,7 @@ parameters = {
     "resolution": 8, #used for generation - should be how many items 1 timestep is encoded to
     "iterations": 5, #number of models to run and then average
     "dropout": 0.1,
-    "bidirectional":False,
+    "bidirectional":True,
     "attention_model": 'general',
 }
 
