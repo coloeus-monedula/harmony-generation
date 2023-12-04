@@ -325,7 +325,7 @@ def main():
     m21_lyrics_folder = out_folder
 
     # split into train test dataset here - or, can manually move scores from a filtered folder to test folder
-    # this is done before train dataset but actual conversion done after train dataset
+    # this is done before train dataset so tokenisation doesn't occur, but actual conversion done after train dataset
     move_test_chorales(test_folder, filtered_folder, 3)
 
     create_pytorch_train_dataset(filtered_folder, torch_save,resolution, split=True)
