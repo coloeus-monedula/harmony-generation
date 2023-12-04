@@ -13,6 +13,7 @@ torch = "*"
 muspy = "*"
 jsonschema = "*"
 scikit-learn = "*"
+optuna = "*"
 
 [dev-packages]
 
