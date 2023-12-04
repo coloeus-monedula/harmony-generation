@@ -20,6 +20,7 @@ else:
     device = torch.device("cpu")
     print("Using CPU")
 
+plt.switch_backend('agg')
 
 def time_since(since):
     now = time.time()
@@ -149,7 +150,7 @@ def get_new_model(token_path, bidirectional, attention_model, dropout_p, SOS_tok
     return encode_decode, optimiser, criterion
 
 
-def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hyperparameters):
+def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hyperparameters, show_attention = False):
 
     model.eval()
     model.to(device)
@@ -169,7 +170,7 @@ def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hy
         for x, y in loader:
             x, y = x.to(device), y.to(device)
 
-            output, _ = model(x, None)
+            output, _, weights = model(x, None)
 
             # A,T,B, S+1, Acc+1, FB+1
             preds = torch.argmax(output, -1)
@@ -193,6 +194,14 @@ def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hy
 
     # convert to torch
     generated_ATB = torch.stack(generated_ATB).long()
+
+    if show_attention:
+        if weights is None:
+            print("Can't show attention matrix as there are no attention weights")
+        else:
+            # TODO
+            pass
+
 
     return accuracy, join_score(score[0], generated_ATB)
 
@@ -223,6 +232,47 @@ def join_score(x: torch.Tensor, y: torch.Tensor):
     return generated
 
 
+def plot(points, plot_epoch, type):
+    plt.figure()
+    fig, ax = plt.subplots()
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(base=0.2))
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(base=10))
+
+    # multiply indexes by plot_epoch + 1 to get epoch numbers 
+    x = [(i * plot_epoch) + 1 for i, _ in enumerate(points)]
+
+    ax.plot(x, points)
+
+    ax.set_xlabel("Epoch")
+    if type == "loss":
+        ax.set_ylabel("Loss")
+    elif type == "accuracy":
+        ax.set_ylabel("Accuracy")
+
+
+    plt.show()
+
+def plot_attention(weights, input, output):
+    plt.figure()
+    fig, ax = plt.subplots()
+
+    heatmap = ax.matshow(weights.cpu().numpy(), cmap="bone")
+    fig.colorbar(heatmap)
+
+    ax.set_xticklabels(input, rotation = 90)
+    ax.set_yticklabels(output)#
+
+    # label at every tick
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+
+    plt.xlabel('Input Sequence')
+    plt.ylabel('Output Sequence')
+    plt.title('Attention Weights')
+
+    plt.show()
+
+
 # hyperparams and params
 parameters = {
     "lr": 0.01,
@@ -230,8 +280,8 @@ parameters = {
     # measured in epoch numbers
     "plot_every" : 5,
     "print_every" : 10,
-    "batch_size": 256,
-    "hidden_size": 512,
+    "batch_size": 128,
+    "hidden_size": 256,
     #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
     # # possibly because 0 is also used as a token so off by 1
     # "input_size" : 252, 
@@ -239,7 +289,7 @@ parameters = {
     "SOS_TOKEN": 129, #for the decoder
     "resolution": 8, #used for generation - should be how many items 1 timestep is encoded to
     "iterations": 5, #number of models to run and then average
-    "dropout": 0.1,
+    "dropout": 0.2,
     "bidirectional":True,
     "attention_model": None, # luong, bahdanau, or None
 }
