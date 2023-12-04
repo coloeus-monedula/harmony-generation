@@ -22,6 +22,6 @@ losses = state["losses"]
 accuracies = state["accuracies"]
 
 plot_every = 5
-
-plot(losses, plot_every, "loss")
-plot(accuracies, plot_every, "accuracy")
+iters = 5
+plot(losses, plot_every, "loss", "Loss graph for biLSTM and no Attention, averaged over {} iterations".format(iters))
+plot(accuracies, plot_every, "accuracy", "Accuracy graph for biLSTM and no Attention, averaged over {} iterations".format(iters))

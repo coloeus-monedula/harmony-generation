@@ -20,7 +20,7 @@ else:
     device = torch.device("cpu")
     print("Using CPU")
 
-plt.switch_backend('agg')
+# plt.switch_backend('agg')
 
 def time_since(since):
     now = time.time()
@@ -232,8 +232,7 @@ def join_score(x: torch.Tensor, y: torch.Tensor):
     return generated
 
 
-def plot(points, plot_epoch, type):
-    plt.figure()
+def plot(points, plot_epoch, type, title ):
     fig, ax = plt.subplots()
     ax.yaxis.set_major_locator(ticker.MultipleLocator(base=0.2))
     ax.xaxis.set_major_locator(ticker.MultipleLocator(base=10))
@@ -249,11 +248,11 @@ def plot(points, plot_epoch, type):
     elif type == "accuracy":
         ax.set_ylabel("Accuracy")
 
+    ax.set_title(title)
 
     plt.show()
 
 def plot_attention(weights, input, output):
-    plt.figure()
     fig, ax = plt.subplots()
 
     heatmap = ax.matshow(weights.cpu().numpy(), cmap="bone")
