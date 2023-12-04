@@ -192,22 +192,22 @@ def pad_y(to_pad, tensor = [0,0,0,0,0,0]):
     return total_padding_y
 
 # returns clean model and optimiser
-def get_new_model(token_path, bidirectional, attention_model, dropout_p, SOS_token):
+def get_new_model(token_path, params):
     # calculate input size dynamically by the tokeniser
     # add 1 to avoid out of index errors since 0 is also used as a token
     with open(token_path, "rb") as f:
         tokens.load(pickle.load(f))
 
     input_size = tokens.get_max_token() + 1
-    hidden_size = parameters["hidden_size"]
-    output_num = parameters["output_num"]
+    hidden_size = params["hidden_size"]
+    output_num = params["output_num"]
 
-    encoder = EncoderRNN(input_size, hidden_size, bidirectional=bidirectional, dropout_p=dropout_p)
-    decoder = DecoderRNN(hidden_size, input_size, output_num=output_num, attention_model=attention_model, dropout_p=dropout_p, device=device, SOS_token=SOS_token)
+    encoder = EncoderRNN(input_size, hidden_size, bidirectional=params["bidirectional"], dropout_p=params["dropout"], normalisation=params["normalisation"])
+    decoder = DecoderRNN(hidden_size, input_size, output_num=output_num, attention_model=params["attention_model"], dropout_p=params["dropout"], device=device, SOS_token=params["SOS_TOKEN"], normalisation=params["normalisation"])
     encode_decode = EncoderDecoder(encoder, decoder)
 
     # loss and optimiser
-    optimiser = torch.optim.Adam(encode_decode.parameters(), lr = parameters["lr"])
+    optimiser = torch.optim.Adam(encode_decode.parameters(), lr = params["lr"])
     criterion = nn.CrossEntropyLoss()
 
     return encode_decode, optimiser, criterion
@@ -335,27 +335,32 @@ def plot_attention(weights, input, output):
     plt.show()
 
 
-# hyperparams and params
+# hyperparams and model params
 parameters = {
     "lr": 0.01,
-    "n_epochs": 101, #maximum number of epochs
+    "n_epochs": 100, #maximum number of epochs
     # measured in epoch numbers
-    "plot_every" : 5,
-    "print_every" : 10,
-    "batch_size": 128,
-    "hidden_size": 256,
+    "plot_every" : 2,
+    "print_every" : 2,
+    "batch_size": 2046,
+    "hidden_size": 512,
+    "early_stopping": 3, #number of epochs with no improvement after which training is stopped 
     #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
     # # possibly because 0 is also used as a token so off by 1
     # "input_size" : 252, 
+    "validation_size": 2, #number of scores in val
     "output_num": 6,
     "SOS_TOKEN": 129, #for the decoder
     "resolution": 8, #used for generation - should be how many items 1 timestep is encoded to
     "iterations": 5, #number of models to run and then average
-    "dropout": 0.2,
+
+    # model params
+    "dropout": 0.6,
     "bidirectional":True,
-    "attention_model": None, # luong, bahdanau, or None
-    "validation_size": 2, #number of scores in val
-    "early_stopping": 5, #number of epochs with no improvement after which training is stopped 
+    "attention_model": "bahdanau", # luong, bahdanau, or None
+    "normalisation": "both", # dropout, layer (short for layerNorm), or both
+
+    "eval": False,
 }
 
 tokens = Tokeniser()
@@ -366,9 +371,9 @@ def main():
     # # input size should be = 3
 
     # args = parser.parse_args()
-    eval = False
+    eval = parameters["eval"]
 
-    model_path = "content/bi-none-early.pt"
+    model_path = "content/bi-b-both.pt"
     token_path = "content/tokens.pkl"
     split = True
     train_file = "content/preprocessed.pt"
@@ -386,8 +391,9 @@ def main():
             # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
             test_dataset = Chorales(test_file)
         
-        model, optimiser, _ = get_new_model(token_path, parameters["bidirectional"], parameters["attention_model"], parameters["dropout"], parameters["SOS_TOKEN"])
         checkpoint = torch.load(model_path, map_location=device)
+        model_params = checkpoint["params"]
+        model, optimiser, _ = get_new_model(token_path, model_params)
         model.load_state_dict(checkpoint["model"])
         # optimiser.load_state_dict(checkpoint["optimiser"])
 
@@ -423,7 +429,7 @@ def main():
 
         for i in range(iters):
             print("Iteration {}.".format(i+1))
-            model, optimiser, criterion = get_new_model(token_path, parameters["bidirectional"], parameters["attention_model"], parameters["dropout"], parameters["SOS_TOKEN"])
+            model, optimiser, criterion = get_new_model(token_path,parameters)
 
             model.to(device)
 
@@ -434,7 +440,18 @@ def main():
         results.sort(key = lambda x: x[1] )
 
         torch.save({
-            "model": results[0][0].state_dict()
+            "model": results[0][0].state_dict(),
+            # params needed to init a new model
+            "params": {
+                "bidirectional": parameters["bidirectional"],
+                "dropout": parameters["dropout"],
+                "normalisation": parameters["normalisation"],
+                "hidden_size": parameters["hidden_size"],
+                "output_num": parameters["output_num"],
+                "attention_model": parameters["attention_model"],
+                "lr": parameters["lr"],
+                "SOS_TOKEN": parameters["SOS_TOKEN"]
+            }
         }, model_path)
 
         # avg_final_loss = 0

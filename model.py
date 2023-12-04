@@ -2,28 +2,33 @@ import torch, torch.nn as nn
 
 
 """
-A Seq2Seq LSTM model, with options for bidirectionality and Luong, Bahdanau, or no Attention mechanism. 
+A Seq2Seq LSTM model, with options for bidirectionality, Luong, Bahdanau, or no Attention mechanism and different normalisation layers. 
 """
 
 # encoder decoder structure follows https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html and supervisor code
 # NOTE: allows for n_layers > 1 but doesn't necessary work with it
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size,  bidirectional, n_layers = 1, dropout_p = 0.05,) -> None:
+    def __init__(self, input_size, hidden_size,  bidirectional, normalisation, n_layers = 1, dropout_p = 0.05,) -> None:
         super(EncoderRNN, self).__init__()
 
         self.hidden_size = hidden_size
         self.bidirectional = bidirectional
+        self.normalisation = normalisation
         self.n_layers = n_layers
         # turn input into a hidden_size sized vector, use to try and learn relationship between pitches and FB notations 
         self.embedding = nn.Embedding(input_size, hidden_size)
+
         self.rnn = nn.LSTM(hidden_size, hidden_size,num_layers= n_layers, batch_first=True, bidirectional=bidirectional)
         self.dropout = nn.Dropout(dropout_p)
+        self.layer_norm = nn.LayerNorm(hidden_size)
+        # self.layer_norm = nn.BatchNorm1d(hidden_size)
 
     def forward(self, input):
         embedded = self.embedding(input)
-        embedded = self.dropout(embedded)
-        output, hidden = self.rnn(embedded)
+        if self.normalisation == "dropout" or self.normalisation == "both":
+            embedded = self.dropout(embedded)
 
+        output, hidden = self.rnn(embedded)
 
         if (self.bidirectional):
             # sum forward and backwards output and hidden states together
@@ -40,12 +45,17 @@ class EncoderRNN(nn.Module):
 
                 hidden_layers.append(concat_h)
                 cell_layers.append(concat_c)
+            
+            hidden = (torch.cat(hidden_layers,0), torch.cat(cell_layers, 0))
 
-            return output, (torch.cat(hidden_layers,0), torch.cat(cell_layers, 0))
+        # layer normalisation
+        if self.normalisation == "layer" or self.normalisation == "both":
+            output = self.layer_norm(output)
 
-        else:
+            # output = self.layer_norm(output.permute(0,2,1))
+            # output = output.permute(0,2,1)
 
-            return output, hidden
+        return output, hidden
     
     # check embedding
     def get_embedding(self, x):
@@ -103,7 +113,7 @@ class DecoderRNN(nn.Module):
 
     # output size typically equals encoder's input size
     # NOTE: "timesteps" are columns of output.
-    def __init__(self,  hidden_size, output_size, attention_model, device, SOS_token, output_num = 6,  n_layers =1, dropout_p = 0.1) -> None:
+    def __init__(self,  hidden_size, output_size, attention_model, device, SOS_token, normalisation, output_num = 6,  n_layers =1, dropout_p = 0.1) -> None:
         super(DecoderRNN, self).__init__()
 
 
@@ -111,12 +121,17 @@ class DecoderRNN(nn.Module):
         self.n_layers = n_layers
         self.device = device
         self.SOS_token = SOS_token
+        self.normalisation = normalisation
 
         self.embedding = nn.Embedding(output_size, hidden_size)
         if attention_model == "bahdanau":
             self.rnn = nn.LSTM(hidden_size*2, hidden_size, n_layers, batch_first=True)
         else:
             self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True)
+
+        self.layer_norm = nn.LayerNorm(hidden_size)
+        # self.layer_norm = nn.BatchNorm1d(hidden_size)
+
         self.dropout = nn.Dropout(dropout_p)
 
         if attention_model == "luong":
@@ -169,10 +184,11 @@ class DecoderRNN(nn.Module):
     # for a single input - embed, rnn, use linear output layer
     def forward_step(self, input, hidden, encoder_outputs):
         output = self.embedding(input)
-        if hasattr(self, "attention"):
+        if hasattr(self, "attention") and (self.normalisation == "dropout" or self.normalisation == "both"):
             output = self.dropout(output)
 
-        if self.attention_model == "bahdanau":#
+
+        if self.attention_model == "bahdanau":
             # since hidden is a tuple
             # length, batch, hidden -> batch, length, hidden
             query = hidden[0].permute(1,0,2)
@@ -180,8 +196,14 @@ class DecoderRNN(nn.Module):
             context, attn_weights = self.attention(query, encoder_outputs)
             output = torch.cat((output, context), dim = 2)
 
-
         output, hidden = self.rnn(output, hidden)
+        #normalisation
+        if self.normalisation == "layer" or self.normalisation == "both":
+            output = self.layer_norm(output)
+            # output = self.layer_norm(output.permute(0,2,1))
+            # output = output.permute(0,2,1)
+
+
         if self.attention_model == "luong":
             # attention weight calculations from current rnn output
             weights:torch.Tensor = self.attention(output, encoder_outputs)
