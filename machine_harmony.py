@@ -1,4 +1,5 @@
 import argparse
+import json
 import torch.nn as nn
 import torch
 from local_datasets import PytorchChoralesDataset as Chorales, PytorchSplitChoralesDataset as SplitChorales
@@ -335,111 +336,63 @@ def plot_attention(weights, input, output):
     plt.show()
 
 
-# hyperparams and model params
-parameters = {
-    "lr": 0.01,
-    "n_epochs": 100, #maximum number of epochs
-    # measured in epoch numbers
-    "plot_every" : 2,
-    "print_every" : 2,
-    "batch_size": 2046,
-    "hidden_size": 512,
-    "early_stopping": 3, #number of epochs with no improvement after which training is stopped 
-    #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
-    # # possibly because 0 is also used as a token so off by 1
-    # "input_size" : 252, 
-    "validation_size": 2, #number of scores in val
-    "output_num": 6,
-    "SOS_TOKEN": 129, #for the decoder
-    "resolution": 8, #used for generation - should be how many items 1 timestep is encoded to
-    "iterations": 5, #number of models to run and then average
-
-    # model params
-    "dropout": 0.6,
-    "bidirectional":True,
-    "attention_model": "bahdanau", # luong, bahdanau, or None
-    "normalisation": "both", # dropout, layer (short for layerNorm), or both
-
-    "eval": False,
-}
-
-tokens = Tokeniser()
-
-def main():
-    # parser = argparse.ArgumentParser()
-
-    # # input size should be = 3
-
-    # args = parser.parse_args()
-    eval = parameters["eval"]
-
-    model_path = "content/bi-b-both.pt"
-    token_path = "content/tokens.pkl"
-    split = True
-    train_file = "content/preprocessed.pt"
-    test_file = "content/preprocessed_test.pt"
-
-    # TODO: make this the chorale name
-    generated_path = "temp/generated.pt"
-
-
-    if eval:
-        print("Evaluating model.")
-        if split:
-            test_dataset = SplitChorales(test_file)
-        else:
+def eval_model(model_path, token_path, split, test_file):
+    print("Evaluating model.")
+    if split:
+        test_dataset = SplitChorales(test_file)
+    else:
             # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
-            test_dataset = Chorales(test_file)
+        test_dataset = Chorales(test_file)
         
-        checkpoint = torch.load(model_path, map_location=device)
-        model_params = checkpoint["params"]
-        model, optimiser, _ = get_new_model(token_path, model_params)
-        model.load_state_dict(checkpoint["model"])
+    checkpoint = torch.load(model_path, map_location=device)
+    model_params = checkpoint["params"]
+    model, optimiser, _ = get_new_model(token_path, model_params)
+    model.load_state_dict(checkpoint["model"])
         # optimiser.load_state_dict(checkpoint["optimiser"])
 
 
-        for i in range(len(test_dataset)):
-            accuracy, generated = generate(model, test_dataset[i], parameters)
+    for i in range(len(test_dataset)):
+        accuracy, generated = generate(model, test_dataset[i], parameters)
 
         # save last one for now
-        generated = generated.cpu()
-        torch.save(generated, generated_path)
+    generated = generated.cpu()
 
-        print(generated)
+    # TODO: make this the chorale name
+    generated_path = "temp/generated.pt"
+    torch.save(generated, generated_path)
 
-        
 
+def train_model(model_path, token_path, split, train_file, parameters):
+    print("Training model.")
+    if split:
+        dataset = SplitChorales(train_file)
     else:
-        print("Training model.")
-        if split:
-            dataset = SplitChorales(train_file)
-        else:
             # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
-            dataset = Chorales(train_file)
+        dataset = Chorales(train_file)
 
         
-        train_dataset, val_dataset = split_train_val(dataset, parameters["validation_size"], parameters["batch_size"])
+    train_dataset, val_dataset = split_train_val(dataset, parameters["validation_size"], parameters["batch_size"])
 
         # shuffle = false since data is time contiguous + to learn when an end of piece is
-        train_loader = DataLoader(train_dataset, batch_size=parameters["batch_size"], shuffle=False)
-        val_loader = DataLoader(val_dataset, batch_size=parameters["batch_size"], shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=parameters["batch_size"], shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=parameters["batch_size"], shuffle=False)
 
-        results = []
-        iters = parameters["iterations"]
+    results = []
+    iters = parameters["iterations"]
 
-        for i in range(iters):
-            print("Iteration {}.".format(i+1))
-            model, optimiser, criterion = get_new_model(token_path,parameters)
+    for i in range(iters):
+        print("Iteration {}.".format(i+1))
+        model, optimiser, criterion = get_new_model(token_path,parameters)
 
-            model.to(device)
+        model.to(device)
 
-            result = train(model, train_loader, criterion, optimiser, parameters, val_loader, parameters["early_stopping"])
-            results.append(result)
+        result = train(model, train_loader, criterion, optimiser, parameters, val_loader, parameters["early_stopping"])
+        results.append(result)
 
         # sort by order of increasing final loss
-        results.sort(key = lambda x: x[1] )
+    results.sort(key = lambda x: x[1] )
 
-        torch.save({
+    torch.save({
             "model": results[0][0].state_dict(),
             # params needed to init a new model
             "params": {
@@ -454,44 +407,120 @@ def main():
             }
         }, model_path)
 
-        # avg_final_loss = 0
-        # avg_final_accuracy = 0
-        # avg_length = math.ceil(parameters["n_epochs"]/parameters["plot_every"])
 
-        # avg_losses = np.zeros(avg_length, dtype=np.float32)
-        # avg_accuracies = np.zeros(avg_length, dtype=np.float32)
+    # avg_final_loss = 0
+    # avg_final_accuracy = 0
+    # avg_length = math.ceil(parameters["n_epochs"]/parameters["plot_every"])
 
-
-        # for i in range(len(results)):
-        #     model, final_loss, losses, accuracies = results[i]
-        #     avg_final_loss += final_loss
-        #     avg_final_accuracy += accuracies[-1]
-
-        #     avg_losses += losses
-        #     avg_accuracies += accuracies
-
-        # avg_final_loss /= iters
-        # avg_final_accuracy /=iters
-        # avg_losses /= iters
-        # avg_accuracies /= iters
-
-        # # save model with lowest loss
-        # # as well as average running losses and accuracies
-        # torch.save({
-        #     "model": results[0][0].state_dict(),
-        #     # "optimiser": optimiser.state_dict(),
-        #     "losses": avg_losses,
-        #     "accuracies": avg_accuracies
-        # }, model_path)
-
-        # print("Average final loss across {} iterations: {}".format(iters, avg_final_loss))
-        # print("Average final accuracy across {} iterations: {}".format(iters, avg_final_accuracy))
+    # avg_losses = np.zeros(avg_length, dtype=np.float32)
+    # avg_accuracies = np.zeros(avg_length, dtype=np.float32)
 
 
+    # for i in range(len(results)):
+    #     model, final_loss, losses, accuracies = results[i]
+    #     avg_final_loss += final_loss
+    #     avg_final_accuracy += accuracies[-1]
 
+    #     avg_losses += losses
+    #     avg_accuracies += accuracies
+
+    # avg_final_loss /= iters
+    # avg_final_accuracy /=iters
+    # avg_losses /= iters
+    # avg_accuracies /= iters
+
+    # # save model with lowest loss
+    # # as well as average running losses and accuracies
+    # torch.save({
+    #     "model": results[0][0].state_dict(),
+    #     # "optimiser": optimiser.state_dict(),
+    #     "losses": avg_losses,
+    #     "accuracies": avg_accuracies
+    # }, model_path)
+
+    # print("Average final loss across {} iterations: {}".format(iters, avg_final_loss))
+    # print("Average final accuracy across {} iterations: {}".format(iters, avg_final_accuracy))
 
 
 
+
+
+tokens = Tokeniser()
+
+def main(parameters, meta_params):
+
+    run_type = meta_params["type"]
+
+    model_path = meta_params["model_path"]
+    token_path = meta_params["tokens"]
+    train_file = meta_params["train_file"]
+    test_file = meta_params["test_file"]
+
+    # just set to true since code isn't made for chorales that aren't split between x and y
+    split = True
+
+
+    # three modes: train, eval, or train + eval
+    if run_type == "eval":
+        eval_model(model_path, token_path, split, test_file)
+    elif run_type =="train":
+        train_model(model_path, token_path, split, train_file, parameters)
+    else:
+        train_model(model_path, token_path, split, train_file, parameters)
+        eval_model(model_path, token_path, split, test_file)
+
+
+# hyperparams and model params
+parameters = {
+    "lr": 0.01,
+    "n_epochs": 100, #maximum number of epochs
+    # measured in epoch numbers
+    "plot_every" : 2,
+    "print_every" : 2,
+    "batch_size": 1024,
+    "hidden_size": 512,
+    "early_stopping": 3, #number of epochs with no improvement after which training is stopped 
+    #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
+    # # possibly because 0 is also used as a token so off by 1
+    # "input_size" : 252, 
+    "validation_size": 2, #number of scores in val
+    "output_num": 6,
+    "SOS_TOKEN": 129, #for the decoder
+    "resolution": 8, #used for generation - should be how many items 1 timestep is encoded to
+    "iterations": 5, #number of models to run and then average
+
+    # model params
+    "dropout": 0.5,
+    "bidirectional":True,
+    "attention_model": "bahdanau", # luong, bahdanau, or None
+    "normalisation": "both", # dropout, layer (short for layerNorm), or both
+}
 
 if __name__ == "__main__":
-    main()
+
+    parser = argparse.ArgumentParser(description = "Train and/or evaluate a RNN model on a dataset of BCFB scores.")
+    parser.add_argument("model", help="Filename where the model should be found or saved to")
+    parser.add_argument("type", choices=["train", "eval", "both"], type=str.lower, default="both")
+    parser.add_argument("--folder", "--f", default="content/")
+    parser.add_argument("--tokens", default="tokens.pkl")
+    parser.add_argument("--train-file", default="preprocessed.pt")
+    parser.add_argument("--test-file", default="preprocessed_test.pt")
+    parser.add_argument("--params")
+
+    args = parser.parse_args()
+
+    # NOTE: likely a better way than JSON but here for posterity
+    if args.params is not None:
+        with open(args.params, "r") as file:
+            parameters = json.load(file)
+            parameter = parameters["parameters"]
+
+    meta_params = {
+        "tokens":args.folder+ args.tokens,
+        "train_file": args.folder + args.train_file,
+        "test_file": args.folder + args.test_file,
+        "model_path": args.folder + args.model,
+        "type": args.type
+    }
+
+    main(parameters, meta_params)
