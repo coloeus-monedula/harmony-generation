@@ -473,13 +473,13 @@ def main(parameters, meta_params):
 # hyperparams and model params
 parameters = {
     "lr": 0.01,
-    "n_epochs": 100, #maximum number of epochs
+    "n_epochs": 25, #maximum number of epochs
     # measured in epoch numbers
     "plot_every" : 2,
     "print_every" : 2,
     "early_stopping": 3, #number of epochs with no improvement after which training is stopped 
-    "batch_size": 1024,
-    "hidden_size": 512,
+    "hidden_size": 230,
+    "batch_size": 455,
     #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
     # # possibly because 0 is also used as a token so off by 1
     # "input_size" : 252, 
@@ -490,9 +490,9 @@ parameters = {
     "iterations": 5, #number of models to run and then average
 
     # model params
-    "dropout": 0.5,
+    "dropout": 0.49,
     "bidirectional":True,
-    "attention_model": "bahdanau", # luong, bahdanau, or None
+    "attention_model": "luong", # luong, bahdanau, or None
     "normalisation": "both", # dropout, layer (short for layerNorm), or both
 }
 

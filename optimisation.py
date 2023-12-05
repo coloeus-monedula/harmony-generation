@@ -30,7 +30,8 @@ def objective(trial: optuna.Trial, params):
     params["lr"] = trial.suggest_float("lr", 0.01, 0.1)
     params["hidden_size"] = trial.suggest_int("hidden_size",128,1024,log=True)
     params["batch_size"] = trial.suggest_int("batch_size", 256, 4096, log=True )
-    n_epochs = trial.suggest_int("epochs", 10, 100, step=10)
+    params["normalisation"] = trial.suggest_categorical("normalisation", ["both","layer","dropout"] )
+    n_epochs = trial.suggest_int("epochs", 10, 100, step=5)
 
 
     train_loader, val_loader = get_loaders(params["batch_size"])
@@ -40,9 +41,6 @@ def objective(trial: optuna.Trial, params):
     # train loop
     # rewrite here so pruning can be done via optuna and to cut out unnecessary bits
     for epoch in range(n_epochs):
-        train_loss = 0
-        num_rounds = 0
-
         model.train()
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
@@ -59,9 +57,6 @@ def objective(trial: optuna.Trial, params):
             loss.backward()
             optimiser.step()
             optimiser.zero_grad()
-
-            train_loss += loss.item()
-            num_rounds+=1
 
         model.eval()
         correct, total = 0, 0
@@ -101,11 +96,10 @@ def get_loaders(batch_size):
 
 
 
-def run_trial(bidirectional, attention, normalisation, n_trials):
+def run_trial(bidirectional, attention, n_trials, save):
     params = {
         "bidirectional": bidirectional,
         "attention_model": attention,
-        "normalisation": normalisation,
         "SOS_TOKEN": SOS_token,
         "token_path": token_path,
         "output_num": output_num,
@@ -126,7 +120,7 @@ def run_trial(bidirectional, attention, normalisation, n_trials):
     print("  Number of complete trials: ", len(complete_trials))
 
     best_params = study.best_params
-    print("Best Hyperparameters for bidirectional = {}, attention = {}, normalisation = {}: ".format(bidirectional, attention, normalisation), best_params)
+    print("Best Hyperparameters for bidirectional = {}, attention = {}: ".format(bidirectional, attention), best_params)
 
 
 def run_trials():
@@ -134,9 +128,10 @@ def run_trials():
     pass
 
 
+# TODO: try with diff token limits
 token_path = "artifacts/tokens.pkl"
 train_file = "artifacts/preprocessed.pt"
-save = "artifacts/study.joblib"
+
 SOS_token = 129
 plot_every = 2
 print_every = 2
@@ -147,5 +142,11 @@ validation_size = 2
 early_stopping = 3
 
 if __name__ == "__main__":
-    run_trial(True, None, "both", 100)
+    save = "artifacts/study.joblib"
+    run_trial(True, "luong", 70, "artifacts/bi-l.joblib")
+    run_trial(True, "bahdanau", 70, "artifacts/bi-b.joblib")
+    run_trial(True, None, 70, "artifacts/bi-None.joblib")
+    run_trial(False, None, 70, "artifacts/uni-None.joblib")
+    run_trial(False, "luong", 70, "artifacts/uni-l.joblib")
+    run_trial(False, "bahdanau", 70, "artifacts/uni-b.joblib")
 

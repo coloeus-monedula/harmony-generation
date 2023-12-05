@@ -300,7 +300,8 @@ def get_chorales(url, dest_folder ):
 m21_lyrics_folder = ""
 
 
-empty_tokens = Tokeniser()
+# empty_tokens = Tokeniser()
+empty_tokens = Tokeniser(max_token=230)
 
 def main():
     in_folder = "./chorales/FB_source/musicXML_master"
@@ -309,9 +310,9 @@ def main():
     out_folder = "added_FB"
 
     test_folder = "test_scores"
-    torch_save = "content/preprocessed.pt"
-    torch_test_save = "content/preprocessed_test.pt"
-    token_save = "content/tokens.pkl"
+    torch_save = "artifacts/230tok_preprocessed.pt"
+    torch_test_save = "artifacts/230tok_preprocessed_test.pt"
+    token_save = "artifacts/230_tokens.pkl"
     resolution = 8
 
     if not path.exists("chorales"):
@@ -326,7 +327,7 @@ def main():
 
     # split into train test dataset here - or, can manually move scores from a filtered folder to test folder
     # this is done before train dataset so tokenisation doesn't occur, but actual conversion done after train dataset
-    move_test_chorales(test_folder, filtered_folder, 3)
+    # move_test_chorales(test_folder, filtered_folder, 3)
 
     create_pytorch_train_dataset(filtered_folder, torch_save,resolution, split=True)
 
