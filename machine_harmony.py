@@ -29,7 +29,7 @@ def time_since(since):
     secs -= mins * 60
     return '%dmins %dsecs' % (mins, secs)
 
-def train(model:EncoderDecoder, train_loader:DataLoader, criterion:nn.CrossEntropyLoss, optimiser:torch.optim.Adam, hyperparameters, val_loader: DataLoader, early_stopping: int):
+def train(model:EncoderDecoder, train_loader:DataLoader, criterion:nn.CrossEntropyLoss, optimiser:torch.optim.Adam, hyperparameters, val_loader: DataLoader):
 
     all_losses = []
     all_accuracies = []
@@ -106,7 +106,7 @@ def train(model:EncoderDecoder, train_loader:DataLoader, criterion:nn.CrossEntro
         else:
             no_improvement +=1
 
-        if no_improvement >= early_stopping:
+        if no_improvement >= hyperparameters["early_stopping"]:
             print("Early stopping after {} epochs".format(epoch + 1))
             break
 
@@ -373,7 +373,7 @@ def train_model(model_path, token_path, split, train_file, parameters):
         
     train_dataset, val_dataset = split_train_val(dataset, parameters["validation_size"], parameters["batch_size"])
 
-        # shuffle = false since data is time contiguous + to learn when an end of piece is
+    # shuffle = false since data is time contiguous + to learn when an end of piece is
     train_loader = DataLoader(train_dataset, batch_size=parameters["batch_size"], shuffle=False)
     val_loader = DataLoader(val_dataset, batch_size=parameters["batch_size"], shuffle=False)
 
@@ -386,7 +386,7 @@ def train_model(model_path, token_path, split, train_file, parameters):
 
         model.to(device)
 
-        result = train(model, train_loader, criterion, optimiser, parameters, val_loader, parameters["early_stopping"])
+        result = train(model, train_loader, criterion, optimiser, parameters, val_loader)
         results.append(result)
 
         # sort by order of increasing final loss
@@ -477,9 +477,9 @@ parameters = {
     # measured in epoch numbers
     "plot_every" : 2,
     "print_every" : 2,
+    "early_stopping": 3, #number of epochs with no improvement after which training is stopped 
     "batch_size": 1024,
     "hidden_size": 512,
-    "early_stopping": 3, #number of epochs with no improvement after which training is stopped 
     #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
     # # possibly because 0 is also used as a token so off by 1
     # "input_size" : 252, 
@@ -501,7 +501,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "Train and/or evaluate a RNN model on a dataset of BCFB scores.")
     parser.add_argument("model", help="Filename where the model should be found or saved to")
     parser.add_argument("type", choices=["train", "eval", "both"], type=str.lower, default="both")
-    parser.add_argument("--folder", "--f", default="content/")
+    parser.add_argument("--folder", "--f", default="artifacts/")
     parser.add_argument("--tokens", default="tokens.pkl")
     parser.add_argument("--train-file", default="preprocessed.pt")
     parser.add_argument("--test-file", default="preprocessed_test.pt")
