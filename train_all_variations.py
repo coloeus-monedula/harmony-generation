@@ -42,7 +42,7 @@ def main(meta_params, run_type):
     meta_params["type"] = run_type
 
     if meta_params["token_count"] == 270:
-        print("Token count 270 (ie. full tokens).")
+        print("\nToken count 270 (ie. full tokens).")
         # full tokens
         complete_run("artifacts/bi-l.pt", "luong", True, "both",  25, 455, 230, 0.01,0.49,meta_params)
         complete_run("artifacts/bi-b.pt", "bahdanau", True, "both", 35, 4065, 292, 0.08, 0.67,meta_params)
@@ -51,7 +51,7 @@ def main(meta_params, run_type):
         complete_run("artifacts/uni-l.pt", "luong", False, "both", 30, 3902, 134, 0.034, 0.30,meta_params)
         complete_run("artifacts/uni-b.pt", "bahdanau", False, "both", 65, 4068, 359, 0.04, 0.64,meta_params)
     elif meta_params["token_count"] == 250:
-        print("Token count 250.")
+        print("\nToken count 250.")
         # 250 tokens
         complete_run("artifacts/bi-l-250.pt", "luong", True, "dropout",  60, 3567, 136, 0.03,0.36,meta_params)
         complete_run("artifacts/bi-b-250.pt", "bahdanau", True, "layer", 30, 3758, 348, 0.02, 0.30,meta_params)
@@ -61,7 +61,7 @@ def main(meta_params, run_type):
         complete_run("artifacts/uni-b-250.pt", "bahdanau", False, "layer", 80, 3698, 294, 0.012, 0.36,meta_params)
 
     elif meta_params["token_count"] == 230:
-        # 230 tokens
+        print("\nToken count 230.")
         complete_run("artifacts/bi-l-230.pt", "luong", True, "both",  15, 3736, 170, 0.013,0.6,meta_params )
         complete_run("artifacts/bi-b-230.pt", "bahdanau", True, "dropout", 15, 3722, 173, 0.07, 0.66,meta_params)
         complete_run("artifacts/bi-n-230.pt", None, True, "both", 80, 3660, 283, 0.03, 0.33,meta_params)
@@ -99,9 +99,9 @@ meta_params_230 = {
 }
 
 
-main(meta_params_full, run_type="train")
-main(meta_params_250, run_type="train")
-main(meta_params_230, run_type="train")
+# main(meta_params_full, run_type="train")
+# main(meta_params_250, run_type="train")
+# main(meta_params_230, run_type="train")
 main(meta_params_full, run_type="eval")
 main(meta_params_250, run_type="eval")
 main(meta_params_230, run_type="eval")

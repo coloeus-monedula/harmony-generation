@@ -1,3 +1,4 @@
+import pickle
 from jsonschema.exceptions import ValidationError, SchemaError
 import jsonschema
 import json
@@ -8,6 +9,8 @@ import os
 import muspy
 from music21.stream import Score
 from music21 import instrument
+
+from tokeniser import Tokeniser
 
 null = None
 
@@ -22,7 +25,7 @@ def validate_json(data):
 
 # https://www.midi.org/specifications-old/item/gm-level-1-sound-set 
 # program midi uses above spec 
-def tensor_to_json(tensor: Tensor, folder, filename, resolution = 8, program_midi = 55):
+def tensor_to_json(tensor: Tensor, folder, filename, token_path,resolution = 8, program_midi = 55):
     data = {}
 
     # TODO: change generated piece to piece the FB is taken from?
@@ -47,7 +50,8 @@ def tensor_to_json(tensor: Tensor, folder, filename, resolution = 8, program_mid
         track = add_track(tensor[:,i], track_name.get(i), program_midi)
         tracks.append(track)
     # reed organ sound
-    accomp = add_track(tensor[:, 4], "Accompaniment", 17)
+    accomp = add_track(tensor[:, 4], "Accompaniment", 17, fb=tensor[:,-1], token_path =token_path )
+
     tracks.append(accomp)
 
 
@@ -85,24 +89,41 @@ def tensor_to_json(tensor: Tensor, folder, filename, resolution = 8, program_mid
     # every time pitch stays the same, + 1 to current dur
     # every time pitch variable changes, save the note time pitch  (velocity?) and duration, change current pitch, and reset current duration
     # NOTE: ASSUMES NO REPEATED CONSECUTIVE NOTES
-def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64):
+def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:Tensor = None, token_path = None):
     track = {
         "program": program_midi,
         "is_drum": False,
         "name" : part_name 
     }
 
+
+    # TODO: if fb is not None, increment alonside part
+    # get reverse lookup alongside 
+    if fb is not None:
+        if token_path is None:
+            raise Exception("Trying to add FBs - however, no tokeniser is given")
+        
+        tokens = Tokeniser()
+        with open(token_path, "rb") as f:
+            data = pickle.load(f)
+            tokens.load(data)
+        reversed = tokens.get_reversed_dict()
+
+
+
     notes = []
+    converted_fbs = []
     # in timesteps
     # each item, +1 timestep
     time = 0
-
     current_pitch = part[0].item()
     current_duration = 0
+    index = 0
     for pitch in part:
+
+
         if (pitch.item() != current_pitch):
             # save previous pitch to list, if not silence / pitch 0
-
             if (current_pitch != 0):
                 note = {
                     "time": time,
@@ -113,6 +134,17 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64):
 
                 notes.append(note)
 
+            if fb is not None:
+                # set as None - ie. don't add to lyrics
+                fb_num = fb[index].item()
+                fb_str = reversed.get(fb_num, "None")
+                if fb_str != "None":
+                    lyric = {
+                        "time": time,
+                        "lyric": fb_str
+                    }
+                    converted_fbs.append(lyric)
+
             # change to new pitch, increment timestep counter
             current_pitch = pitch.item()
             time +=current_duration
@@ -120,9 +152,15 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64):
             current_duration = 1
         else:
             current_duration+=1  
+        
+            
+
+        index +=1
                   
 
     track["notes"] = notes
+    if fb is not None and token_path is not None:
+        track["lyrics"] = converted_fbs
     return track
 
 def muspy_to_music21(filename, json_folder, show=False) -> Score:
@@ -170,7 +208,7 @@ def main():
     generated = torch.load(generated_path)
 
     filename = "test"
-    tensor_to_json(generated, "generated_JSON", filename+".json")
+    tensor_to_json(generated, "generated_JSON", filename+".json", "artifacts/tokens.pkl")
 
     export_audio(filename, "generated_JSON", "audio")
 if __name__ == "__main__":

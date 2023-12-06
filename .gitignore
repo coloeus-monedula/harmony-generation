@@ -11,7 +11,5 @@ test_scores/
 test.py
 *.pt
 artifacts/bi-b.pt
-
 artifacts/preprocessed.pt
-
 artifacts/preprocessed_test.pt
