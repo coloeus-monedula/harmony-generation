@@ -7,4 +7,11 @@ added_FB/
 filtered/
 generated_JSON/
 test_scores/
-audio/
+*.joblib
+test.py
+*.pt
+artifacts/bi-b.pt
+
+artifacts/preprocessed.pt
+
+artifacts/preprocessed_test.pt

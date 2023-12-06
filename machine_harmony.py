@@ -1,5 +1,6 @@
 import argparse
 import json
+from os import path
 import torch.nn as nn
 import torch
 from local_datasets import PytorchChoralesDataset as Chorales, PytorchSplitChoralesDataset as SplitChorales
@@ -336,7 +337,7 @@ def plot_attention(weights, input, output):
     plt.show()
 
 
-def eval_model(model_path, token_path, split, test_file):
+def eval_model(model_path, token_path, split, test_file, prefix=""):
     print("Evaluating model.")
     if split:
         test_dataset = SplitChorales(test_file)
@@ -354,12 +355,14 @@ def eval_model(model_path, token_path, split, test_file):
     for i in range(len(test_dataset)):
         accuracy, generated = generate(model, test_dataset[i], parameters)
 
-        # save last one for now
-    generated = generated.cpu()
+        generated = generated.cpu()
+        generated_path = path.join("temp", prefix+test_dataset.getname(i)+".pt")
 
-    # TODO: make this the chorale name
-    generated_path = "temp/generated.pt"
-    torch.save(generated, generated_path)
+        torch.save({
+            "accuracy": accuracy,
+            "generated": generated
+        }, generated_path)
+
 
 
 def train_model(model_path, token_path, split, train_file, parameters):
@@ -404,28 +407,31 @@ def train_model(model_path, token_path, split, train_file, parameters):
                 "attention_model": parameters["attention_model"],
                 "lr": parameters["lr"],
                 "SOS_TOKEN": parameters["SOS_TOKEN"]
-            }
+            },
+            "losses": results[2],
+            "accuracies": results[3]
         }, model_path)
 
 
-    # avg_final_loss = 0
-    # avg_final_accuracy = 0
+    avg_final_loss = 0
+    avg_final_accuracy = 0
     # avg_length = math.ceil(parameters["n_epochs"]/parameters["plot_every"])
 
     # avg_losses = np.zeros(avg_length, dtype=np.float32)
     # avg_accuracies = np.zeros(avg_length, dtype=np.float32)
 
 
-    # for i in range(len(results)):
-    #     model, final_loss, losses, accuracies = results[i]
-    #     avg_final_loss += final_loss
-    #     avg_final_accuracy += accuracies[-1]
+    for i in range(len(results)):
+        model, final_loss, losses, accuracies = results[i]
+        avg_final_loss += final_loss
+        avg_final_accuracy += accuracies[-1]
 
-    #     avg_losses += losses
-    #     avg_accuracies += accuracies
+        # NOTE: can't do avg losses/accuracies due to differing lengths of train time due to early stopping
+        # avg_losses += losses
+        # avg_accuracies += accuracies
 
-    # avg_final_loss /= iters
-    # avg_final_accuracy /=iters
+    avg_final_loss /= iters
+    avg_final_accuracy /=iters
     # avg_losses /= iters
     # avg_accuracies /= iters
 
@@ -438,8 +444,8 @@ def train_model(model_path, token_path, split, train_file, parameters):
     #     "accuracies": avg_accuracies
     # }, model_path)
 
-    # print("Average final loss across {} iterations: {}".format(iters, avg_final_loss))
-    # print("Average final accuracy across {} iterations: {}".format(iters, avg_final_accuracy))
+    print("Average final loss across {} iterations: {}".format(iters, avg_final_loss))
+    print("Average final accuracy across {} iterations: {}".format(iters, avg_final_accuracy))
 
 
 
@@ -455,6 +461,7 @@ def main(parameters, meta_params):
     token_path = meta_params["tokens"]
     train_file = meta_params["train_file"]
     test_file = meta_params["test_file"]
+    prefix = meta_params["prefix"]
 
     # just set to true since code isn't made for chorales that aren't split between x and y
     split = True
@@ -462,12 +469,12 @@ def main(parameters, meta_params):
 
     # three modes: train, eval, or train + eval
     if run_type == "eval":
-        eval_model(model_path, token_path, split, test_file)
+        eval_model(model_path, token_path, split, test_file, prefix)
     elif run_type =="train":
         train_model(model_path, token_path, split, train_file, parameters)
     else:
         train_model(model_path, token_path, split, train_file, parameters)
-        eval_model(model_path, token_path, split, test_file)
+        eval_model(model_path, token_path, split, test_file, prefix)
 
 
 # hyperparams and model params
@@ -506,6 +513,8 @@ if __name__ == "__main__":
     parser.add_argument("--train-file", default="preprocessed.pt")
     parser.add_argument("--test-file", default="preprocessed_test.pt")
     parser.add_argument("--params")
+    # for the generated pt file
+    parser.add_argument("--eval-prefix", default = "")
 
     args = parser.parse_args()
 
@@ -520,7 +529,8 @@ if __name__ == "__main__":
         "train_file": args.folder + args.train_file,
         "test_file": args.folder + args.test_file,
         "model_path": args.folder + args.model,
-        "type": args.type
+        "type": args.type,
+        "prefix":args.eval_prefix
     }
 
     main(parameters, meta_params)

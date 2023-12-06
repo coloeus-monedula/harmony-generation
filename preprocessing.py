@@ -227,7 +227,7 @@ def FB_and_pianoroll(score:Music, tokens:Tokeniser, m21_lyrics_folder:str, is_te
 
     fb_length = int(fb.duration.quarterLength * resolution)
     # array specification follows pianoroll representation spec
-    # length+1 so last bar is a bar of silence
+    # length+1 so last bar is a bar of silence, so slicing t+1 for last index still works
     fb_array = np.full(fb_length+1, tokens.get_none(), np.int16)
 
     # last bar of silence, won't have default FB so make 0
@@ -300,8 +300,7 @@ def get_chorales(url, dest_folder ):
 m21_lyrics_folder = ""
 
 
-# empty_tokens = Tokeniser()
-empty_tokens = Tokeniser(max_token=230)
+empty_tokens = Tokeniser(max_token = 230)
 
 def main():
     in_folder = "./chorales/FB_source/musicXML_master"
@@ -310,8 +309,8 @@ def main():
     out_folder = "added_FB"
 
     test_folder = "test_scores"
-    torch_save = "artifacts/230tok_preprocessed.pt"
-    torch_test_save = "artifacts/230tok_preprocessed_test.pt"
+    torch_save = "artifacts/230_preprocessed.pt"
+    torch_test_save = "artifacts/230_preprocessed_test.pt"
     token_save = "artifacts/230_tokens.pkl"
     resolution = 8
 

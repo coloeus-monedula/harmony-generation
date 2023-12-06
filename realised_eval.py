@@ -2,6 +2,8 @@ from manual_harmony import manual_parser
 from eval import main as eval_score
 
 # https://www.doc.ic.ac.uk/~nuric/coding/argparse-with-multiple-files-to-handle-configuration-in-python.html refactor using this?
+
+# NOTE: if fbs are not added back into the machine generated version, need to turn incomplete off.
 def main():
     chord_checks = {
     "close": True,

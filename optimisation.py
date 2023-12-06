@@ -1,5 +1,6 @@
 # hyperparameter tuning
 
+import argparse
 import joblib
 import torch
 import optuna
@@ -123,14 +124,8 @@ def run_trial(bidirectional, attention, n_trials, save):
     print("Best Hyperparameters for bidirectional = {}, attention = {}: ".format(bidirectional, attention), best_params)
 
 
-def run_trials():
-    # do for all types of models
-    pass
-
 
 # TODO: try with diff token limits
-token_path = "artifacts/tokens.pkl"
-train_file = "artifacts/preprocessed.pt"
 
 SOS_token = 129
 plot_every = 2
@@ -142,11 +137,21 @@ validation_size = 2
 early_stopping = 3
 
 if __name__ == "__main__":
-    save = "artifacts/study.joblib"
-    run_trial(True, "luong", 70, "artifacts/bi-l.joblib")
-    run_trial(True, "bahdanau", 70, "artifacts/bi-b.joblib")
-    run_trial(True, None, 70, "artifacts/bi-None.joblib")
-    run_trial(False, None, 70, "artifacts/uni-None.joblib")
-    run_trial(False, "luong", 70, "artifacts/uni-l.joblib")
-    run_trial(False, "bahdanau", 70, "artifacts/uni-b.joblib")
+    parser = argparse.ArgumentParser("Hyperparameter tuning")
+    parser.add_argument("tokens", help = "How many tokens used to preprocess the scores")
+
+    args = parser.parse_args()
+    num = args.tokens
+
+    token_path = "artifacts/{}_tokens.pkl".format(num)
+    train_file = "artifacts/{}_preprocessed.pt".format(num)
+    print("Token number = {}".format(num))
+    # run_trial(True, "luong", 70, "artifacts/bi-l-{}.joblib".format(num))
+    # run_trial(True, "bahdanau", 70, "artifacts/bi-b-{}.joblib".format(num))
+    # run_trial(True, None, 70, "artifacts/bi-None-{}.joblib".format(num))
+    # run_trial(False, None, 70, "artifacts/uni-None-{}.joblib".format(num))
+    run_trial(False, "luong", 70, "artifacts/uni-l-{}.joblib".format(num))
+    run_trial(False, "bahdanau", 70, "artifacts/uni-b-{}.joblib".format(num))
+
+
 

@@ -4,7 +4,9 @@ from music21 import chord, stream, roman
 from nltk import ngrams, FreqDist
 from nltk.metrics.distance import jaro_similarity
 import dill as pickle
-import pprint 
+import pprint
+from local_datasets import PytorchSplitChoralesDataset as SplitChorales
+from tokeniser import Tokeniser 
 
 
 # to differentiate close vs open harmony
@@ -329,11 +331,44 @@ def get_text_progressions(lyrics, has_measures):
 
     else:
         # for each loop create equivalent loop of just text equiv
-        # TODO
+        # TODO?
         print("placeholder")
 
     return text_lyrics
 
+
+
+# preprocessed: is the train AND val set
+# dataset is a path to .pt dataset from preprocessing
+# same with tokens for tokeniser
+# resolution: time steps per beat
+def FB_frequency_count(dataset_path, token_path, resolution = 8):
+    # load tokens into tokeniser
+    tokens = Tokeniser()
+    with open(token_path, "rb") as f:
+        data = pickle.load(f)
+        tokens.load(data)
+
+    dataset = SplitChorales(dataset_path)
+
+    all_fbs = []
+    for i in range(len(dataset)):
+        # add all FBs
+        all_fbs.extend(dataset[i][0][:,-1])
+
+    reversed = tokens.get_reversed_dict()
+    translated_fbs = []
+    for fb in all_fbs:
+        translated_fbs.append(reversed.get(fb.item(), "???"))
+        # translated_fbs.append(fb.item())
+
+
+    frequencies = FreqDist(translated_fbs)
+
+    return {
+        "resolution": resolution,
+        "frequencies": frequencies
+    }
 
 
 # checks are false by default, turn on by params

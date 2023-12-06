@@ -25,6 +25,9 @@ class Tokeniser:
 
     def add(self, fb_string):
         token = self.tokens.get(fb_string)
+        if (len(fb_string) == 0):
+            print("Empty fb string - assign None")
+            return self.tokens.get("None")
 
         if token is None and self.next > self.max_token:
             print("Maximum token number reached - encoding as Unknown")
@@ -63,6 +66,18 @@ class Tokeniser:
         self.max_token = state.get("max")
 
         self.tokens = state.get("tokens")
+
+    # returns a val-key dictionary
+    # will work since vals are unique too 
+    def get_reversed_dict(self):
+        reversed = dict((val, key) for key, val in self.tokens.items())
+        return reversed
+
+    def get_key(self,val) -> str:
+        reversed = self.get_reversed_dict()
+        key = reversed[val]
+
+        return key
 
 
 # TODO: make into class, set a "start token" 

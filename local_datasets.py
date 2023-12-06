@@ -100,6 +100,9 @@ class PytorchSplitChoralesDataset(Dataset):
         chorales_list = list(self.chorales_dict.values())
         return chorales_list[index]
     
+    def getname (self, index) -> str:
+        chorales_list = list(self.chorales_dict.keys())
+        return chorales_list[index]
 
     def get_by_filename(self, name) -> (torch.Tensor, torch.Tensor):
         tensor_tuple = self.chorales_dict.get(name)
