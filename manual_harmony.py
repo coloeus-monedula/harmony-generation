@@ -215,8 +215,11 @@ def export_audio(filename, score: stream.Score, bass_voice, sound_folder):
     # change to same instruments as predicted audio export
     for el in score.parts[-1].recurse():
         if 'Instrument' in el.classes:
-            el.activeSite.replace(el, instrument.Piano())
+            el.activeSite.replace(el, instrument.Contrabass())
 
+    # transpose an octave down - music21 looks at the notes on the score and ignores the fact the actual pitch is an octave lower, unlike musescore
+    # meanwhile, muspy encodes actual pitch presumably
+    score.parts[-1].transpose("P-8", inPlace=True)
     score.write("midi", fp=filepath)
 
 

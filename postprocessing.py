@@ -26,7 +26,7 @@ def validate_json(data):
 
 # https://www.midi.org/specifications-old/item/gm-level-1-sound-set 
 # program midi uses above spec 
-def tensor_to_json(tensor: Tensor, folder, filename, token_path,resolution = 8, program_midi = 55):
+def tensor_to_json(tensor: Tensor, folder, filename, token_path,resolution = 8, program_midi = 0):
     data = {}
 
     # TODO: change generated piece to piece the FB is taken from?
@@ -50,8 +50,8 @@ def tensor_to_json(tensor: Tensor, folder, filename, token_path,resolution = 8, 
     for i in range(4):
         track = add_track(tensor[:,i], track_name.get(i), program_midi)
         tracks.append(track)
-    # reed organ sound
-    accomp = add_track(tensor[:, 4], "Accompaniment", 17, fb=tensor[:,-1], token_path =token_path )
+    # make this louder
+    accomp = add_track(tensor[:, 4], "Accompaniment", 0, fb=tensor[:,-1], token_path =token_path , velocity=127)
 
     tracks.append(accomp)
 
@@ -195,7 +195,18 @@ def export_audio(filename, json_folder, sound_folder, from_muspy = True):
         part.insert(0, instrument.Choir())
     for el in score.parts[-1].recurse():
         if 'Instrument' in el.classes:
-            el.activeSite.replace(el, instrument.Piano())
+            el.activeSite.replace(el, instrument.Contrabass())
+
+
+    # transpose an octave down - music21 looks at the  notes on the score and ignores the fact the actual pitch is an octave lower, unlike musescore
+    # meanwhile, muspy encodes actual pitch presumably
+    if from_muspy == False:
+        score.parts[-1].transpose("P-8", inPlace=True)
+        # score.show()
+
+
+
+
 
     score.write("midi", fp=filepath)
 

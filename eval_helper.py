@@ -6,11 +6,11 @@ from music21 import converter
 # https://www.doc.ic.ac.uk/~nuric/coding/argparse-with-multiple-files-to-handle-configuration-in-python.html refactor using this?
 
 # NOTE: if fbs are not added back into the machine generated version, need to turn incomplete off.
-def main():
+def main(filename, og_score):
     chord_checks = {
     "close": True,
     "range": True,
-    "incomplete": True,
+    "incomplete": False,
     "crossing": True
     }
     transition_checks = {
@@ -34,7 +34,8 @@ def main():
     # array of objects
     results = []
     for i in range(iterations):
-        returned = manual_parser()
+        # returned = manual_parser()
+        returned = machine_eval(filename, og_score)
         result = eval_score(chord_checks=chord_checks, transition_checks=transition_checks, max_semitone=max_semitone, scores=returned, to_print=to_print)
 
         results.append(result)
@@ -62,20 +63,8 @@ def main():
 
 
 # filename with no .json extension
+# NOTE: requires generated items from "postprocessing"
 def machine_eval(filename, og_score):
-    chord_checks = {
-    "close": True,
-    "range": True,
-    "incomplete": False,
-    "crossing": True
-    }
-    transition_checks = {
-    "hidden_5th": True,
-    "hidden_8th": True,
-    "parallel_5th": True,
-    "parallel_8th": True,
-    "overlap": True
-    }
 
     # get both into m21 format
     realised = muspy_to_music21(filename)
@@ -98,8 +87,12 @@ def machine_eval(filename, og_score):
     for part in realised.parts:
         part.offset = 0
 
+    # transpose accomp an octave up, to match with how music21 analyses the realised and original scores
+    # since music21 looks at the notes on the score and ignores the fact the actual pitch is an octave lower, but muspy didn't and wrote the notes at their actual pitch
+    realised.parts[-1].transpose("P8", inPlace=True)
 
-    result = eval_score(chord_checks=chord_checks, transition_checks=transition_checks, max_semitone=12, scores=score_objs, to_print=True)
+    # result = eval_score(chord_checks=chord_checks, transition_checks=transition_checks, max_semitone=12, scores=score_objs, to_print=True)
+    return score_objs
 
 
 
@@ -108,4 +101,10 @@ def machine_eval(filename, og_score):
 
 if __name__ == "__main__":
     # main()
-    machine_eval("b-BWV_36.08_FB.musicxml", "chorales/FB_source/musicXML_master/BWV_36.08_FB.musicxml")
+    options = ["36.08", "145.05", "245.14"]
+    for score in options:
+        print("Bidirectional for {}".format(score))
+        main("b-BWV_{}_FB.musicxml".format(score), "chorales/FB_source/musicXML_master/BWV_{}_FB.musicxml".format(score))
+
+        print("Unidirectional for {}".format(score))
+        main("u-BWV_{}_FB.musicxml".format(score), "chorales/FB_source/musicXML_master/BWV_{}_FB.musicxml".format(score))
