@@ -99,9 +99,9 @@ meta_params_230 = {
 }
 
 
-# main(meta_params_full, run_type="train")
-# main(meta_params_250, run_type="train")
+main(meta_params_full, run_type="train")
+main(meta_params_250, run_type="train")
 main(meta_params_230, run_type="train")
-# main(meta_params_full, run_type="eval")
-# main(meta_params_250, run_type="eval")
+main(meta_params_full, run_type="eval")
+main(meta_params_250, run_type="eval")
 main(meta_params_230, run_type="eval")

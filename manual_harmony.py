@@ -215,7 +215,7 @@ def export_audio(filename, score: stream.Score, bass_voice, sound_folder):
     # change to same instruments as predicted audio export
     for el in score.parts[-1].recurse():
         if 'Instrument' in el.classes:
-            el.activeSite.replace(el, instrument.Contrabass())
+            el.activeSite.replace(el, instrument.Piano())
 
     score.write("midi", fp=filepath)
 

@@ -195,7 +195,7 @@ def export_audio(filename, json_folder, sound_folder, from_muspy = True):
         part.insert(0, instrument.Choir())
     for el in score.parts[-1].recurse():
         if 'Instrument' in el.classes:
-            el.activeSite.replace(el, instrument.Contrabass())
+            el.activeSite.replace(el, instrument.Piano())
 
     score.write("midi", fp=filepath)
 
