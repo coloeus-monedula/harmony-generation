@@ -534,3 +534,5 @@ if __name__ == "__main__":
     }
 
     main(parameters, meta_params)
+
+    # command to run: python machine-harmony.py bi-l-230.pt eval --eval-prefix "b-" --tokens 230_tokens.pkl --test-file 230_preprocessed_test.pt

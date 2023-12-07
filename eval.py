@@ -108,11 +108,12 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, local_adju
 
     # "If a Score or Part of Measures is provided, a Stream of Measures will be returned"
     # remove redundant false to account for the fact sometimes voices sing the same notes
-    chords = score.chordify(addPartIdAsGroup = True, removeRedundantPitches = False)
+    score.show("text")
+    chords = score.chordify(addPartIdAsGroup = False, removeRedundantPitches = False)
+    chords.show()
+
 
     fb = score.parts[-1]
-
-
     # make measure offsets for each score equal to each other so offset matching works
     # NOTE: assumes the chordified and normal parts should have equal number of measures
     fb_measures = fb.getElementsByClass(stream.Measure)
@@ -125,27 +126,28 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, local_adju
     
     #1:1 fb notation to chords, either None or in notationString format 
     fb_list = []
-    # https://groups.google.com/g/music21list/c/pr8616w2bT0/m/90AatjqsAQAJ
-    # adding lyrics to chordify function based off this one 
-    for aChord in chords.flatten():
-        chord_offset = aChord.offset
+    if chord_checks["incomplete"]:
+        # adding lyrics to chordify function based off this one 
+        # https://groups.google.com/g/music21list/c/pr8616w2bT0/m/90AatjqsAQAJ
+        for aChord in chords.flatten():
+            chord_offset = aChord.offset
 
-        for melody_note in fb.flatten().getElementsByOffset(chord_offset):
-            try:
-                lyrics = melody_note.lyrics
-                # exclude lyrics that dont have FB notation
-                if lyrics[0].rawText.strip() == "":
-                    fb_list.append(None)
-                else:
-                    notation_str = []
-                    for lyric in lyrics:
-                        notation_str.append(lyric.rawText)
-                        # also adds to chords as lyrics in case it's needed in the future
-                        aChord.addLyric(lyric.rawText, lyric.number)
-                    fb_list.append(",".join(notation_str))
+            for melody_note in fb.flatten().getElementsByOffset(chord_offset):
+                try:
+                    lyrics = melody_note.lyrics
+                    # exclude lyrics that dont have FB notation
+                    if lyrics[0].rawText.strip() == "":
+                        fb_list.append(None)
+                    else:
+                        notation_str = []
+                        for lyric in lyrics:
+                            notation_str.append(lyric.rawText)
+                            # also adds to chords as lyrics in case it's needed in the future
+                            aChord.addLyric(lyric.rawText, lyric.number)
+                        fb_list.append(",".join(notation_str))
 
-            except (AttributeError):
-                continue
+                except (AttributeError):
+                    continue
 
     # print(fb_list)
     pitches = get_pitches_music21_chords(chords, format="obj")
@@ -156,7 +158,8 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, local_adju
         first = pitches[i]
         second = pitches[i+1]
 
-        local_cost = eval_chord(first, chord_checks, local_adjust, fb_list[i], analysed_key)
+        fb_item = None if chord_checks["incomplete"]==False else fb_list[i]  
+        local_cost = eval_chord(first, chord_checks, local_adjust,analysed_key, fb_item)
         transition_cost = trans_adjust * eval_transitions(first, second, trans_checks)
 
         local_total+=local_cost
@@ -171,7 +174,10 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, local_adju
     # n - 1 chord
     first = pitches[size - 2]
     second = pitches[size - 1]
-    local_cost = eval_chord(first, chord_checks, local_adjust, fb_list[size-2],  analysed_key) + eval_chord(second, chord_checks, local_adjust, fb_list[size-1],  analysed_key)
+
+    fb_item_2 = None if chord_checks["incomplete"] == False else fb_list[size-2]  
+    fb_item_1 = None if chord_checks["incomplete"] == False else fb_list[size-1]  
+    local_cost = eval_chord(first, chord_checks, local_adjust, analysed_key,  fb_item_2) + eval_chord(second, chord_checks, local_adjust,analysed_key, fb_item_1)
     transition_cost = eval_transitions(first, second, trans_checks)
     total = local_cost + transition_cost
 
@@ -191,7 +197,7 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, local_adju
 
 # chord placement rules
 # we are ignoring the figure interpretation metrics for now as it's a lot of work
-def eval_chord(chord, checks: dict, adjust_factor, fb, analyzed_key):
+def eval_chord(chord, checks: dict, adjust_factor,  analyzed_key, fb= None):
 
     cost = 0
     if (checks["close"] and possibility.upperPartsWithinLimit(chord, max_semitone_separation)):
@@ -454,12 +460,14 @@ def main(standalone = False, chord_checks = {
     realised = scores["realised"]
     # realised.show()
 
-    # reconstructing original score
-    # have to do this for both
-    original = stream.Score()
-    parts = list(scores["original"].values())
-    for p in parts:
-        original.insert(p)
+    # reconstructing original score if needed
+    if isinstance(scores["original"], stream.Score):
+        original = scores["original"]
+    else:
+        original = stream.Score()
+        parts = list(scores["original"].values())
+        for p in parts:
+            original.insert(p)
 
     analysed_key = original.analyze('key')
     if (to_print or standalone and args.print ):
@@ -467,7 +475,7 @@ def main(standalone = False, chord_checks = {
     # original.show()
 
     rules_results = rules_based_eval(realised, chord_checks, transition_checks, analysed_key)
-
+    rules_results = []
 
     similarity_results = similarity_eval(realised, original)
 

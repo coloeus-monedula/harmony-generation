@@ -1,3 +1,4 @@
+import glob
 import pickle
 from jsonschema.exceptions import ValidationError, SchemaError
 import jsonschema
@@ -163,11 +164,13 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
         track["lyrics"] = converted_fbs
     return track
 
-def muspy_to_music21(filename, json_folder, show=False) -> Score:
+def muspy_to_music21(filename, json_folder="generated_JSON", show=False) -> Score:
     filepath = path.join(json_folder,filename+".json")
     muspy_obj = muspy.load_json(filepath)
+    # muspy_obj.print()
     m21 = muspy.to_music21(muspy_obj)
 
+    # TODO: MANUALLY ADD BACK FB NOTATIONS HERE
     if (show):
         m21.show()
 
@@ -188,8 +191,21 @@ def export_audio(filename, json_folder, sound_folder):
 
     m21.write("midi", fp=filepath)
 
-    
 
+# converts all generated to JSON -> music21 -> midi
+# returns audio
+def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl"):
+    search = path.join(folder, "*.pt")
+    files = glob.glob(search)
+
+    for file in files:
+        basename = path.basename(file)
+        basename = path.splitext(basename)[0]
+        dataset = torch.load(file)
+        generated = dataset["generated"]
+
+        tensor_to_json(generated, "generated_JSON", basename+".json", token_path=tokens )
+        export_audio(basename, "generated_JSON", "audio")
 
 # TODO: if we're using data from scores, add info for time sig etc. from that? pass as an object param 
 # TODO: change how audio is exported wrt types of instruments bc realised instruments may not use the same as muspy
@@ -205,12 +221,14 @@ def main():
 
     generated_path = "temp/generated.pt"
     resolution = 8
-    generated = torch.load(generated_path)
+    # generated = torch.load(generated_path)
 
-    filename = "test"
-    tensor_to_json(generated, "generated_JSON", filename+".json", "artifacts/tokens.pkl")
+    # filename = "test"
+    # tensor_to_json(generated, "generated_JSON", filename+".json", "artifacts/tokens.pkl")
 
-    export_audio(filename, "generated_JSON", "audio")
+    # export_audio(filename, "generated_JSON", "audio")
+
+    convert_all_generated()
 if __name__ == "__main__":
     main()
 
