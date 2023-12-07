@@ -217,6 +217,7 @@ def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl", 
         export_audio(basename, "generated_JSON", "audio")
 
         # original audio
+        # NOTE: assumes only u- and b- prefix audios are in folder
         og_audio_name = basename[2:]
         og_path = os.path.join(og_folder, og_audio_name)
         export_audio(og_path, "N/A", "audio", from_muspy=False)
