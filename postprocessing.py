@@ -9,7 +9,7 @@ from os import path, makedirs
 import os
 import muspy
 from music21.stream import Score
-from music21 import instrument
+from music21 import instrument, converter
 
 from tokeniser import Tokeniser
 
@@ -176,25 +176,34 @@ def muspy_to_music21(filename, json_folder="generated_JSON", show=False) -> Scor
 
     return m21
 
-def export_audio(filename, json_folder, sound_folder):
-    m21 = muspy_to_music21(filename, json_folder)
+def export_audio(filename, json_folder, sound_folder, from_muspy = True):
+
+    if from_muspy:
+        score = muspy_to_music21(filename, json_folder)
+    else:
+        score = converter.parse(filename)
+        # filename passed in will be full path so just take last part for naming midi
+        filename = path.basename(filename)
+
+
     if not path.exists(sound_folder):
         makedirs(sound_folder)
     filepath = path.join(sound_folder, filename+".midi")
 
     # convert first to m21 so exported sound can sound the same as the realised FB
-    for part in m21.parts:
+    for part in score.parts:
         part.insert(0, instrument.Choir())
-    for el in m21.parts[-1].recurse():
+    for el in score.parts[-1].recurse():
         if 'Instrument' in el.classes:
             el.activeSite.replace(el, instrument.Contrabass())
 
-    m21.write("midi", fp=filepath)
+    score.write("midi", fp=filepath)
 
 
 # converts all generated to JSON -> music21 -> midi
+# also adds original audio for comparison
 # returns audio
-def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl"):
+def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl", og_folder = "./chorales/FB_source/musicXML_master"):
     search = path.join(folder, "*.pt")
     files = glob.glob(search)
 
@@ -207,8 +216,12 @@ def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl"):
         tensor_to_json(generated, "generated_JSON", basename+".json", token_path=tokens )
         export_audio(basename, "generated_JSON", "audio")
 
-# TODO: if we're using data from scores, add info for time sig etc. from that? pass as an object param 
-# TODO: change how audio is exported wrt types of instruments bc realised instruments may not use the same as muspy
+        # original audio
+        og_audio_name = basename[2:]
+        og_path = os.path.join(og_folder, og_audio_name)
+        export_audio(og_path, "N/A", "audio", from_muspy=False)
+
+
 def main():
     # dataset: dict[str, Tensor] = torch.load("preprocessed.pt")
     # items = list(dataset.items())

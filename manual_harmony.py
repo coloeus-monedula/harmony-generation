@@ -205,7 +205,7 @@ def handle_anacrusis(part):
 def export_audio(filename, score: stream.Score, bass_voice, sound_folder):
     if not os.path.exists(sound_folder):
         os.makedirs(sound_folder)
-    filepath = os.path.join(sound_folder, filename+".midi")
+    filepath = os.path.join(sound_folder, "m21-"+filename+".midi")
 
     # since FB part is accompaniment, add on bass voice 
     score.insert(-3, bass_voice)
