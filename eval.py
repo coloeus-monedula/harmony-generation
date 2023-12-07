@@ -108,9 +108,7 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, local_adju
 
     # "If a Score or Part of Measures is provided, a Stream of Measures will be returned"
     # remove redundant false to account for the fact sometimes voices sing the same notes
-    score.show("text")
     chords = score.chordify(addPartIdAsGroup = False, removeRedundantPitches = False)
-    chords.show()
 
 
     fb = score.parts[-1]
@@ -475,7 +473,6 @@ def main(standalone = False, chord_checks = {
     # original.show()
 
     rules_results = rules_based_eval(realised, chord_checks, transition_checks, analysed_key)
-    rules_results = []
 
     similarity_results = similarity_eval(realised, original)
 

@@ -94,6 +94,10 @@ def machine_eval(filename, og_score):
         "original": original
     }
 
+    # make realised's Parts offsets to 0
+    for part in realised.parts:
+        part.offset = 0
+
 
     result = eval_score(chord_checks=chord_checks, transition_checks=transition_checks, max_semitone=12, scores=score_objs, to_print=True)
 
