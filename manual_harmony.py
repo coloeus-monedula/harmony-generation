@@ -236,8 +236,8 @@ def manual_parser():
 
     rules = parser.add_argument_group("rules")
     rules.add_argument("--parts-sep", "--ps", default=0, type=int, help = "Maximum amount of semitones apart the upper parts of the realisation (here everything except bass) can be. Default is None (0) ie. no limitations. ")
-    rules.add_argument("--consec-rules", "--ncr", action="store_true", help="Applies consecutive possibility rules to possible realisations. ")
-    rules.add_argument("--single-rules", "--nsr", action = "store_true", help = "Applies single possibility rules to possible realisations. ")
+    rules.add_argument("--consec-rules", "--cr", action="store_true", help="Applies consecutive possibility rules to possible realisations. ")
+    rules.add_argument("--single-rules", "--sr", action = "store_true", help = "Applies single possibility rules to possible realisations. ")
 
 
     # arguments that disable defaults
