@@ -4,10 +4,8 @@ from eval import main as eval_score
 from postprocessing import muspy_to_music21
 from music21 import converter
 
-# https://www.doc.ic.ac.uk/~nuric/coding/argparse-with-multiple-files-to-handle-configuration-in-python.html refactor using this?
 
-# NOTE: if fbs are not added back into the machine generated version, need to turn incomplete off.
-def eval_one(og_score, generation_param, generate_type,chord_checks, transition_checks, save = False, results_file = "",     remove_add_dict = {
+def eval_one(og_score, extra, generate_type,chord_checks, transition_checks, save = False, results_file = "",     remove_add_dict = {
         "remove": ["s"],
         "add": ["s"]
     }):
@@ -26,10 +24,10 @@ def eval_one(og_score, generation_param, generate_type,chord_checks, transition_
     for i in range(iterations):
         is_ML = False
         if generate_type == "m21":
-            score_objs = realise(og_score, generation_param, remove_add_dict)
+            score_objs = realise(og_score, extra, remove_add_dict)
         else:
             is_ML = True
-            score_objs = convert_ML_to_m21(generation_param, og_score)
+            score_objs = extra
 
         result = eval_score(chord_checks=chord_checks, transition_checks=transition_checks, max_semitone=max_semitone, scores=score_objs, to_print=to_print, is_ML=is_ML)
 
@@ -68,8 +66,9 @@ def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,
     bi_file = "b-BWV_{}_FB.musicxml".format(score_num)
     uni_file = "u-BWV_{}_FB.musicxml".format(score_num)
 
-    # bi_scores = convert_ML_to_m21(bi_file, og_score)
-    # uni_scores = convert_ML_to_m21(uni_file, og_score)
+    # the predictions for the trained model will currently always be the same, due to the lack of randomness during prediction (as we feed in parts from the score)
+    bi_scores = convert_ML_to_m21(bi_file, og_score)
+    uni_scores = convert_ML_to_m21(uni_file, og_score)
     # realised_scores = realise(og_score, rules_args, remove_add_dict)
 
     # results_file = "temp/"+bi_file+"_eval.pkl"
@@ -77,10 +76,10 @@ def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,
     eval_one(og_score, rules_args,"m21", chord_checks=chord_checks, transition_checks=transition_checks,save=save, results_file="artifacts/r-BWV_"+score_num+"_FB_eval.pkl", remove_add_dict=remove_add_dict)
 
     print("\nGenerated harmony - bidirectional.")
-    eval_one(og_score, bi_file,"bi",chord_checks=chord_checks, transition_checks=transition_checks, save=save, results_file="artifacts/"+bi_file+"_eval.pkl")
+    eval_one(og_score, bi_scores,"bi",chord_checks=chord_checks, transition_checks=transition_checks, save=save, results_file="artifacts/"+bi_file+"_eval.pkl")
 
     print("\nGenerated harmony - unidirectional.")
-    eval_one(og_score, uni_file,"uni",chord_checks=chord_checks, transition_checks=transition_checks, save=save, results_file="artifacts/"+uni_file+"_eval.pkl")
+    eval_one(og_score, uni_scores,"uni",chord_checks=chord_checks, transition_checks=transition_checks, save=save, results_file="artifacts/"+uni_file+"_eval.pkl")
 
 
 
@@ -90,6 +89,7 @@ def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,
 def convert_ML_to_m21(filename, og_score):
 
     # get both into m21 format
+    #NOTE: the predictions for the trained model will currently always be the same, due to the lack of randomness during prediction (as we feed in parts from the score)
     realised = muspy_to_music21(filename)
     original = converter.parseFile(og_score)
 
