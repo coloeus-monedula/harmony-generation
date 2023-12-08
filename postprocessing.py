@@ -183,8 +183,9 @@ def muspy_to_music21(filename,json_folder="generated_JSON", show=False) -> Score
             continue
         else:
             fb_split = fb.split(",")
-            for single_fb in fb_split:
-                note.addLyric(single_fb)
+            for i in range (len(fb_split)):
+                single = fb_split[i]
+                note.addLyric(single, i+1)
 
 
     if (show):

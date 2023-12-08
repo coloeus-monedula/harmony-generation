@@ -7,11 +7,11 @@ from music21 import converter
 # https://www.doc.ic.ac.uk/~nuric/coding/argparse-with-multiple-files-to-handle-configuration-in-python.html refactor using this?
 
 # NOTE: if fbs are not added back into the machine generated version, need to turn incomplete off.
-def eval_one(score_objs,  save = False, results_file = ""):
+def eval_one(score_objs, is_ML,  save = False, results_file = ""):
     chord_checks = {
     "close": True,
     "range": True,
-    "incomplete": False,
+    "incomplete": True,
     "crossing": True
     }
     transition_checks = {
@@ -33,7 +33,7 @@ def eval_one(score_objs,  save = False, results_file = ""):
     # array of objects
     results = []
     for i in range(iterations):
-        result = eval_score(chord_checks=chord_checks, transition_checks=transition_checks, max_semitone=max_semitone, scores=score_objs, to_print=to_print)
+        result = eval_score(chord_checks=chord_checks, transition_checks=transition_checks, max_semitone=max_semitone, scores=score_objs, to_print=to_print, is_ML=is_ML)
 
         results.append(result)
         jaccard_avg += result["similarity"]["jaccard"]
@@ -59,6 +59,8 @@ def eval_one(score_objs,  save = False, results_file = ""):
     # TODO: predicted melody will also have additional accomp part - do we remove that for this ?
 
  # remove_add_dict =  parameters for music21 realisation. does default of replacing the soprano part with original chorale's soprano
+# TODO: change this bc atm it's not evaluating 5 diff realisations!!
+
 def eval_all_variations(score_num, rules_args,
     remove_add_dict = {
         "remove": ["s"],
@@ -75,13 +77,13 @@ def eval_all_variations(score_num, rules_args,
 
     # results_file = "temp/"+bi_file+"_eval.pkl"
     print("\nRealised harmony using Music21 module.")
-    eval_one(realised_scores,save=save, results_file="temp/r-BWV_"+score_num+"_FB_eval.pkl")
+    eval_one(realised_scores,False,save=save, results_file="temp/r-BWV_"+score_num+"_FB_eval.pkl")
 
     print("\nGenerated harmony - bidirectional.")
-    eval_one(bi_scores, save, "temp/"+bi_file+"_eval.pkl")
+    eval_one(bi_scores,True, save, "temp/"+bi_file+"_eval.pkl")
 
     print("\nGenerated harmony - unidirectional.")
-    eval_one(uni_scores, save, "temp/"+uni_file+"_eval.pkl")
+    eval_one(uni_scores,True, save, "temp/"+uni_file+"_eval.pkl")
 
 
 
@@ -114,6 +116,7 @@ def convert_ML_to_m21(filename, og_score):
     # transpose accomp an octave up, to match with how music21 analyses the realised and original scores
     # since music21 looks at the notes on the score and ignores the fact the actual pitch is an octave lower, but muspy didn't and wrote the notes at their actual pitch
     realised.parts[-1].transpose("P8", inPlace=True)
+
 
     return score_objs
 

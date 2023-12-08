@@ -99,7 +99,7 @@ def get_pitches_music21_chords(chords: list, format) -> list:
 
 # http://web.mit.edu/music21/doc/usersGuide/usersGuide_09_chordify.html chordify
 
-def rules_based_eval(score, chord_checks, trans_checks, analysed_key, local_adjust = 1, trans_adjust = 1):
+def rules_based_eval(score, chord_checks, trans_checks, analysed_key, is_ML, local_adjust = 1, trans_adjust = 1):
     total_costs = 0
     local_list = []
     trans_list = []
@@ -121,35 +121,66 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, local_adju
         fb_offset = fb_measures[i].offset
         chords_measures[i].offset = fb_offset
 
-    
+
     #1:1 fb notation to chords, either None or in notationString format 
     fb_list = []
     if chord_checks["incomplete"]:
+        # counter needed, in case chordify creates more notes than 
+        chord_counter = 0
+        note_counter = 0
+
         # adding lyrics to chordify function based off this one 
         # https://groups.google.com/g/music21list/c/pr8616w2bT0/m/90AatjqsAQAJ
+
         for aChord in chords.flatten():
+            if isinstance(aChord, chord.Chord):
+                chord_counter +=1
             chord_offset = aChord.offset
 
+            fb_to_add = None
             for melody_note in fb.flatten().getElementsByOffset(chord_offset):
                 try:
+                    note_counter +=1
                     lyrics = melody_note.lyrics
+                    # print(len(lyrics))
                     # exclude lyrics that dont have FB notation
-                    if lyrics[0].rawText.strip() == "":
-                        fb_list.append(None)
+                    if len(lyrics) == 0 or lyrics[0].rawText.strip() == "":
+                        fb_to_add = None
+                        fb_list.append(fb_to_add)
                     else:
                         notation_str = []
                         for lyric in lyrics:
                             notation_str.append(lyric.rawText)
                             # also adds to chords as lyrics in case it's needed in the future
                             aChord.addLyric(lyric.rawText, lyric.number)
-                        fb_list.append(",".join(notation_str))
+                        fb_to_add = ",".join(notation_str)
+                        fb_list.append(fb_to_add)
 
                 except (AttributeError):
                     continue
 
-    # print(fb_list)
+            # if the counters are unequal and is_ML = True, chordify has created more chords than there are notes in fb
+            # add extra FB string to fb_list, as we assume that the FB still continues to this new chord
+            # NOTE: doesn't add said FBs to the Chords object through 
+            if (note_counter < chord_counter) and (is_ML == True):
+                print("ML")
+                diff = chord_counter - note_counter
+                for i in range(diff):
+                    fb_list.append(fb_to_add)
+                note_counter = chord_counter
+
+
+
+
     pitches = get_pitches_music21_chords(chords, format="obj")
     size = len(pitches)
+    print(size, chord_counter, note_counter, len(fb_list))
+
+    # final note may have gotten split via chordify - add on remaining difference
+    if (is_ML == True) and (len(fb_list) < size) and (chord_checks["incomplete"]):
+        diff = size - len(fb_list)
+        for i in range(diff):
+            fb_list.append(fb_to_add)
 
     # everything up to and excluding the n-1 chord
     for i in range(0, size - 1):
@@ -376,6 +407,7 @@ def FB_frequency_count(dataset_path, token_path, resolution = 8):
 
 
 # checks are false by default, turn on by params
+# is_ML flag needed since some slightly different processing vs realised harmony is required
 def main(standalone = False, chord_checks = {
     "close": False,
     "range": False,
@@ -387,7 +419,7 @@ def main(standalone = False, chord_checks = {
     "parallel_5th": False,
     "parallel_8th": False,
     "overlap": False
-}, max_semitone = 12, scores = None, to_print=False):
+}, max_semitone = 12, scores = None, to_print=False, is_ML = False):
 
     global max_semitone_separation
     # ie. chord and transition checks aren't passed in via another python program and is via argparse
@@ -472,7 +504,7 @@ def main(standalone = False, chord_checks = {
         print("Analysed key of", analysed_key, "with correlation coefficient of", round(analysed_key.correlationCoefficient, 4))
     # original.show()
 
-    rules_results = rules_based_eval(realised, chord_checks, transition_checks, analysed_key)
+    rules_results = rules_based_eval(realised, chord_checks, transition_checks, analysed_key, is_ML)
 
     similarity_results = similarity_eval(realised, original)
 
