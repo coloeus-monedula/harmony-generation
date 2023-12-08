@@ -5,6 +5,12 @@ class Tokeniser:
     tokens: dict[str, int] = {
 
     }
+
+    # for converting from muspy to music21 format
+    # value has commas inbetween
+    tokens_commas: dict[int, str] = {
+
+    }
     
     # start token should be 1 after the first empty number after pitch midi
     # 129 is used as a start of sentence token
@@ -22,8 +28,12 @@ class Tokeniser:
 
     def get(self, fb_string):
         return self.tokens.get(fb_string, self.tokens.get("Unknown"))
-
-    def add(self, fb_string):
+    
+    def get_with_commas(self, token):
+        return self.tokens_commas.get(token, "None")
+    
+    # TODO: could refactor this so only fb_separate needed
+    def add(self, fb_string, fb_separate):
         token = self.tokens.get(fb_string)
         if (len(fb_string) == 0):
             print("Empty fb string - assign None")
@@ -36,7 +46,11 @@ class Tokeniser:
             self.tokens[fb_string] = self.next
             self.next +=1
 
-            return self.tokens.get(fb_string)
+            new_token = self.tokens.get(fb_string)
+            # add the comma'd version of the fb_string
+            self.tokens_commas[new_token] = ",".join(fb_separate)
+
+            return new_token
         # if token already exists
         else:
             return token
@@ -47,7 +61,9 @@ class Tokeniser:
             "tokens": self.tokens,
             "start": self.start_token,
             "max": self.max_token,
-            "next": self.next} 
+            "next": self.next,
+            "w_commas": self.tokens_commas
+            } 
     
     def get_none(self):
         return self.tokens.get("None")
@@ -66,6 +82,7 @@ class Tokeniser:
         self.max_token = state.get("max")
 
         self.tokens = state.get("tokens")
+        self.tokens_commas = state.get("w_commas")
 
     # returns a val-key dictionary
     # will work since vals are unique too 

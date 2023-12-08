@@ -198,14 +198,20 @@ def make_pytorch_dict(chorales, split, dataset):
 
 def tokenise_FB(lyrics: list[m21_note.Lyric], is_test:bool):
     fb_string = ""
-    for lyric in lyrics:
-        fb_string+=lyric.text.strip()
 
-    # so we don't contanimate the tokenisation
+    # this is for converting the generated score back to music21 format
+    fb_separate = []
+    for lyric in lyrics:
+        stripped = lyric.text.strip()
+        fb_string+=stripped
+        if len(stripped) != 0:
+            fb_separate.append(stripped)
+
+    # so we don't contaminate the tokenisation
     if is_test:
         return empty_tokens.get(fb_string)
     else:
-        return empty_tokens.add(fb_string)
+        return empty_tokens.add(fb_string, fb_separate)
 
 
 

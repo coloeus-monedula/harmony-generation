@@ -3,6 +3,7 @@ import pickle
 from jsonschema.exceptions import ValidationError, SchemaError
 import jsonschema
 import json
+import music21
 from torch import Tensor
 import torch
 from os import path, makedirs
@@ -108,8 +109,6 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
         with open(token_path, "rb") as f:
             data = pickle.load(f)
             tokens.load(data)
-        reversed = tokens.get_reversed_dict()
-
 
 
     notes = []
@@ -121,7 +120,6 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
     current_duration = 0
     index = 0
     for pitch in part:
-
 
         if (pitch.item() != current_pitch):
             # save previous pitch to list, if not silence / pitch 0
@@ -135,11 +133,11 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
 
                 notes.append(note)
 
-            if fb is not None:
-                # set as None - ie. don't add to lyrics
-                fb_num = fb[index].item()
-                fb_str = reversed.get(fb_num, "None")
-                if fb_str != "None":
+                if fb is not None:
+                    # add a FB for every new note, including None
+                    fb_num = fb[index].item()
+                    fb_str = tokens.get_with_commas(fb_num)
+
                     lyric = {
                         "time": time,
                         "lyric": fb_str
@@ -164,13 +162,31 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
         track["lyrics"] = converted_fbs
     return track
 
-def muspy_to_music21(filename, json_folder="generated_JSON", show=False) -> Score:
+
+
+def muspy_to_music21(filename,json_folder="generated_JSON", show=False) -> Score:
     filepath = path.join(json_folder,filename+".json")
     muspy_obj = muspy.load_json(filepath)
     # muspy_obj.print()
     m21 = muspy.to_music21(muspy_obj)
 
     # TODO: MANUALLY ADD BACK FB NOTATIONS HERE
+    # if notation == "None" or "Unknown", make = None
+    fbs = muspy_obj.tracks[-1].lyrics
+    accomp = m21.parts[-1].notes
+  
+    for i in range(len(accomp)):
+        note = accomp[i]
+        fb = fbs[i].lyric
+
+        if fb == "None":
+            continue
+        else:
+            fb_split = fb.split(",")
+            for single_fb in fb_split:
+                note.addLyric(single_fb)
+
+
     if (show):
         m21.show()
 
@@ -179,7 +195,7 @@ def muspy_to_music21(filename, json_folder="generated_JSON", show=False) -> Scor
 def export_audio(filename, json_folder, sound_folder, from_muspy = True):
 
     if from_muspy:
-        score = muspy_to_music21(filename, json_folder)
+        score = muspy_to_music21(filename,json_folder )
     else:
         score = converter.parse(filename)
         # filename passed in will be full path so just take last part for naming midi
@@ -253,7 +269,10 @@ def main():
 
     # export_audio(filename, "generated_JSON", "audio")
 
+
     convert_all_generated()
+
+    # muspy_to_music21("b-BWV_36.08_FB.musicxml")
 if __name__ == "__main__":
     main()
 
