@@ -7,20 +7,11 @@ from music21 import converter
 # https://www.doc.ic.ac.uk/~nuric/coding/argparse-with-multiple-files-to-handle-configuration-in-python.html refactor using this?
 
 # NOTE: if fbs are not added back into the machine generated version, need to turn incomplete off.
-def eval_one(score_objs, is_ML,  save = False, results_file = ""):
-    chord_checks = {
-    "close": True,
-    "range": True,
-    "incomplete": True,
-    "crossing": True
-    }
-    transition_checks = {
-    "hidden_5th": True,
-    "hidden_8th": True,
-    "parallel_5th": True,
-    "parallel_8th": True,
-    "overlap": True
-    }
+def eval_one(og_score, generation_param, generate_type,chord_checks, transition_checks, save = False, results_file = "",     remove_add_dict = {
+        "remove": ["s"],
+        "add": ["s"]
+    }):
+
 
     max_semitone = 12
     iterations = 5
@@ -33,6 +24,13 @@ def eval_one(score_objs, is_ML,  save = False, results_file = ""):
     # array of objects
     results = []
     for i in range(iterations):
+        is_ML = False
+        if generate_type == "m21":
+            score_objs = realise(og_score, generation_param, remove_add_dict)
+        else:
+            is_ML = True
+            score_objs = convert_ML_to_m21(generation_param, og_score)
+
         result = eval_score(chord_checks=chord_checks, transition_checks=transition_checks, max_semitone=max_semitone, scores=score_objs, to_print=to_print, is_ML=is_ML)
 
         results.append(result)
@@ -59,9 +57,8 @@ def eval_one(score_objs, is_ML,  save = False, results_file = ""):
     # TODO: predicted melody will also have additional accomp part - do we remove that for this ?
 
  # remove_add_dict =  parameters for music21 realisation. does default of replacing the soprano part with original chorale's soprano
-# TODO: change this bc atm it's not evaluating 5 diff realisations!!
 
-def eval_all_variations(score_num, rules_args,
+def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,
     remove_add_dict = {
         "remove": ["s"],
         "add": ["s"]
@@ -71,19 +68,19 @@ def eval_all_variations(score_num, rules_args,
     bi_file = "b-BWV_{}_FB.musicxml".format(score_num)
     uni_file = "u-BWV_{}_FB.musicxml".format(score_num)
 
-    bi_scores = convert_ML_to_m21(bi_file, og_score)
-    uni_scores = convert_ML_to_m21(uni_file, og_score)
-    realised_scores = realise(og_score, rules_args, remove_add_dict)
+    # bi_scores = convert_ML_to_m21(bi_file, og_score)
+    # uni_scores = convert_ML_to_m21(uni_file, og_score)
+    # realised_scores = realise(og_score, rules_args, remove_add_dict)
 
     # results_file = "temp/"+bi_file+"_eval.pkl"
     print("\nRealised harmony using Music21 module.")
-    eval_one(realised_scores,False,save=save, results_file="temp/r-BWV_"+score_num+"_FB_eval.pkl")
+    eval_one(og_score, rules_args,"m21", chord_checks=chord_checks, transition_checks=transition_checks,save=save, results_file="artifacts/r-BWV_"+score_num+"_FB_eval.pkl", remove_add_dict=remove_add_dict)
 
     print("\nGenerated harmony - bidirectional.")
-    eval_one(bi_scores,True, save, "temp/"+bi_file+"_eval.pkl")
+    eval_one(og_score, bi_file,"bi",chord_checks=chord_checks, transition_checks=transition_checks, save=save, results_file="artifacts/"+bi_file+"_eval.pkl")
 
     print("\nGenerated harmony - unidirectional.")
-    eval_one(uni_scores,True, save, "temp/"+uni_file+"_eval.pkl")
+    eval_one(og_score, uni_file,"uni",chord_checks=chord_checks, transition_checks=transition_checks, save=save, results_file="artifacts/"+uni_file+"_eval.pkl")
 
 
 
@@ -136,6 +133,20 @@ default = {
         "move_lim": [(1,5), (2, 14), (3, 14)]
     }
 
+chord_checks = {
+"close": True,
+"range": True,
+"incomplete": False, #NOTE: this is somewhat unreliable - see rules_based_eval() for notes
+"crossing": True
+}
+
+transition_checks = {
+"hidden_5th": True,
+"hidden_8th": True,
+"parallel_5th": True,
+"parallel_8th": True,
+"overlap": True
+}
 
 if __name__ == "__main__":
     # main()
@@ -186,4 +197,4 @@ if __name__ == "__main__":
         score_num = options[i]
         rules = rules_args.get(score_num)
         print("\nResults for {}".format(score_num))
-        eval_all_variations(score_num, rules_args = rules, save = False)
+        eval_all_variations(score_num, rules_args = rules, chord_checks=chord_checks, transition_checks=transition_checks, save = False)
