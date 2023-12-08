@@ -293,7 +293,7 @@ def manual_parser():
             rules_args["move_lim"] = move_lim
 
         
-
+    print(rules_args)
 
     # transcribing which realised parts get replaced, which get an additional OG part and which stay the same
     score_parts = {
@@ -319,18 +319,13 @@ def manual_parser():
     # sort now so insertion should be in SAT colour 
     sort_order = {"s":0, "a":1, "t":2}
     score_parts["add"].sort(key=lambda x: sort_order.get(x))
-
+    print(score_parts)
 
     # score_path = "chorales/FB_source/musicXML_master/BWV_470_FB.musicxml"
     # score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
     # fb = extract_FB(score_path)
-    voices = convert_music21(score_path)
-    realised = fb_realisation_satb(voices,  args.maxpitch, score_parts, rules_args, args.show)
+    score_objs = realise( score_path, rules_args, score_parts, args.maxpitch, args.show)
 
-    score_objs = {
-        "realised" : realised, 
-        "original" : voices
-    }
     # NOTE: FB part is popped off in the realisation stage for the original score, will just appear as SATB
 
     if args.save is not None:
@@ -339,8 +334,21 @@ def manual_parser():
 
 
     sound_name =os.path.splitext(args.file)[0]
-    export_audio(sound_name, realised,voices["b"], "./audio")
+    export_audio(sound_name, score_objs["realised"],score_objs["original"]["b"], "./audio")
 
+    return score_objs
+
+
+
+def realise(score_path, rules_args, remove_add_dict, maxpitch = "s", show = False):
+    voices = convert_music21(score_path)
+    realised = fb_realisation_satb(voices,  maxpitch, remove_add_dict, rules_args, show)
+
+    score_objs = {
+        "realised" : realised, 
+        "original" : voices
+    }
+    
     return score_objs
     # print(satb.get("s").show("text"))
     # print(etree.tostring(fb, encoding="unicode", pretty_print=True))
