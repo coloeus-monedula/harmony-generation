@@ -241,7 +241,7 @@ def FB_and_pianoroll(score:Music, tokens:Tokeniser, m21_lyrics_folder:str, is_te
     fb_timestep = 0
 
     for el in fb.recurse().notes:
-        # find equivalent in timesteps
+        # find equivalent in timesteps, following how muspy does it
         duration = int(el.duration.quarterLength * resolution)
         lyrics = el.lyrics
         if len(lyrics) != 0:

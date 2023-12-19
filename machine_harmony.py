@@ -493,7 +493,7 @@ parameters = {
     "validation_size": 2, #number of scores in val
     "output_num": 6,
     "SOS_TOKEN": 129, #for the decoder
-    "resolution": 8, #used for generation - should be how many items 1 timestep is encoded to
+    "resolution": 8, #used for generation - should be how many items 1 quarter note is encoded to
     "iterations": 5, #number of models to run and then average
 
     # model params

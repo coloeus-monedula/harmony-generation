@@ -387,7 +387,7 @@ def get_text_progressions(lyrics, has_measures):
 # preprocessed: is the train AND val set
 # dataset is a path to .pt dataset from preprocessing
 # same with tokens for tokeniser
-# resolution: time steps per beat
+# resolution: time steps per crotchet beat
 def FB_frequency_count(dataset_path, token_path, resolution = 8):
     # load tokens into tokeniser
     tokens = Tokeniser()

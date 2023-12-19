@@ -97,12 +97,7 @@ class Tokeniser:
         return key
 
 
-# TODO: make into class, set a "start token" 
-# if get beyond max_token , set as the unknown token
-# input size then becomes max_token + 1 in RNN bc we also use 0
-
-# tokeniser symbols from this: https://robertkelleyphd.com/home/FiguredBass1.pdf#page=2
-# TODO: also look at how paper did their FB as it will differ slightly from the "standard" - more verbose for instance in 75
+# previous hard-coded tokeniser
 # decouple multiple figures, treat as independent - let model potentially figure it out, same with equivalent FB notations
 tokeniser= {
     "None":150,
