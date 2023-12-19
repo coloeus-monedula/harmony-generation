@@ -209,7 +209,10 @@ def tokenise_FB(lyrics: list[m21_note.Lyric], is_test:bool):
 
     # so we don't contaminate the tokenisation
     if is_test:
-        return empty_tokens.get(fb_string)
+        token = empty_tokens.get(fb_string)
+        if (token == empty_tokens.tokens["Unknown"]):
+            print("Token in testset is Unknown")
+        return token
     else:
         return empty_tokens.add(fb_string, fb_separate)
 
@@ -305,8 +308,8 @@ def get_chorales(url, dest_folder ):
 # filename - lyrics object
 m21_lyrics_folder = ""
 
-
-empty_tokens = Tokeniser(max_token = 230)
+num = 250
+empty_tokens = Tokeniser(max_token = num)
 SILENCE = 128
 
 def main():
@@ -316,9 +319,9 @@ def main():
     out_folder = "added_FB"
 
     test_folder = "test_scores"
-    torch_save = "artifacts/230_preprocessed.pt"
-    torch_test_save = "artifacts/230_preprocessed_test.pt"
-    token_save = "artifacts/230_tokens.pkl"
+    torch_save = "artifacts/"+str(num)+"_preprocessed.pt"
+    torch_test_save = "artifacts/"+str(num)+"_preprocessed_test.pt"
+    token_save = "artifacts/"+str(num) +"_tokens.pkl"
     resolution = 8
 
     if not path.exists("chorales"):
