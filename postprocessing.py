@@ -122,8 +122,8 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
     for pitch in part:
 
         if (pitch.item() != current_pitch):
-            # save previous pitch to list, if not silence / pitch 0
-            if (current_pitch != 0):
+            # save previous pitch to list, if not silence 
+            if (current_pitch != SILENCE):
                 note = {
                     "time": time,
                     "duration": current_duration,
@@ -250,6 +250,8 @@ def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl", 
         og_path = os.path.join(og_folder, og_audio_name)
         export_audio(og_path, "N/A", "audio", from_muspy=False)
 
+
+SILENCE = 128
 
 def main():
     # dataset: dict[str, Tensor] = torch.load("preprocessed.pt")

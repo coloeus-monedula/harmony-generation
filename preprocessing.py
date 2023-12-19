@@ -236,8 +236,8 @@ def FB_and_pianoroll(score:Music, tokens:Tokeniser, m21_lyrics_folder:str, is_te
     # length+1 so last bar is a bar of silence, so slicing t+1 for last index still works
     fb_array = np.full(fb_length+1, tokens.get_none(), np.int16)
 
-    # last bar of silence, won't have default FB so make 0
-    fb_array[-1] = 0
+    # last bar of silence, won't have default FB so make silence token
+    fb_array[-1] = SILENCE
     fb_timestep = 0
 
     for el in fb.recurse().notes:
@@ -252,7 +252,7 @@ def FB_and_pianoroll(score:Music, tokens:Tokeniser, m21_lyrics_folder:str, is_te
 
 
     # convert the rest of the notes into pitches
-    pianoroll = np.zeros((fb_length+1, len(score.tracks) + 1), np.int16)
+    pianoroll = np.full((fb_length+1, len(score.tracks) + 1), SILENCE, np.int16)
     for track_num in range(len(score.tracks)):
         notes = score.tracks[track_num].notes
         for note in notes:
@@ -307,6 +307,7 @@ m21_lyrics_folder = ""
 
 
 empty_tokens = Tokeniser(max_token = 230)
+SILENCE = 128
 
 def main():
     in_folder = "./chorales/FB_source/musicXML_master"

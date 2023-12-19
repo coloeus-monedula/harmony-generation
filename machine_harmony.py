@@ -291,7 +291,7 @@ def join_score(x: torch.Tensor, y: torch.Tensor):
 
     generated = torch.stack([s,a,t,b,acc,fb], dim = 1)
     # add a line of silence
-    silence = torch.tensor([[0,0,0,0,0,0]]).to(device)
+    silence = torch.tensor([[SILENCE,SILENCE,SILENCE,SILENCE,SILENCE,SILENCE]]).to(device)
     generated = torch.cat((generated, silence)) 
 
     return generated
@@ -502,6 +502,8 @@ parameters = {
     "attention_model": "luong", # luong, bahdanau, or None
     "normalisation": "both", # dropout, layer (short for layerNorm), or both
 }
+
+SILENCE = 128
 
 if __name__ == "__main__":
 
