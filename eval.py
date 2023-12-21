@@ -36,7 +36,10 @@ vocal_ranges = {
 chord_costs = {
     # assume to fall under "smooth connection of each part" metric
     "close": -4,
-    "doubled_leading": 1,
+    
+    # DOUBLED LEADING IS NOT USED.
+    # "doubled_leading": 1,
+
     # checks for each voice, up to 4 per chord in total
     "not_in_range": 1,
     # ie. figure bass realisations not in realised - weighted strongly

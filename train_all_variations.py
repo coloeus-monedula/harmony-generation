@@ -42,7 +42,7 @@ def main(meta_params, run_type):
     meta_params["type"] = run_type
 
     if meta_params["token_count"] == 270:
-        print("\nToken count 270 (ie. full tokens).")
+        print("\nToken count max 270 (ie. full tokens).")
         # full tokens
         complete_run("artifacts/bi-l.pt", "luong", True, "both",  25, 455, 230, 0.01,0.49,meta_params)
         complete_run("artifacts/bi-b.pt", "bahdanau", True, "both", 35, 4065, 292, 0.08, 0.67,meta_params)

@@ -329,7 +329,7 @@ def main():
         get_chorales("https://zenodo.org/records/5084914/files/juyaolongpaul/Bach_chorale_FB-v2.0.zip?download=1", in_folder)
 
 
-    # add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
+    add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
 
     global m21_lyrics_folder
     m21_lyrics_folder = out_folder
