@@ -21,8 +21,8 @@ class EncoderRNN(nn.Module):
         self.rnn = nn.LSTM(hidden_size, hidden_size,num_layers= n_layers, batch_first=True, bidirectional=bidirectional)
         self.dropout = nn.Dropout(dropout_p)
         self.layer_norm = nn.LayerNorm(hidden_size)
-        self.layer_norm_hn = nn.LayerNorm(hidden_size)
-        self.layer_norm_cn = nn.LayerNorm(hidden_size)
+        # self.layer_norm_hn = nn.LayerNorm(hidden_size)
+        # self.layer_norm_cn = nn.LayerNorm(hidden_size)
         # self.layer_norm = nn.BatchNorm1d(hidden_size)
 
     def forward(self, input):
@@ -53,11 +53,13 @@ class EncoderRNN(nn.Module):
         # layer normalisation
         if self.normalisation == "layer" or self.normalisation == "both":
             output = self.layer_norm(output)
-            hidden[0] = self.layer_norm_hn(hidden[0])
-            hidden[1] = self.layer_norm_hn(hidden[1])
 
-            # output = self.layer_norm(output.permute(0,2,1))
-            # output = output.permute(0,2,1)
+            # layer_norm for hidden and cell state does not help
+            # hidden_state = self.layer_norm_hn(hidden[0])
+            # cell_state = self.layer_norm_hn(hidden[1])
+
+            # hidden = (hidden_state, cell_state)
+
 
         return output, hidden
     
@@ -134,8 +136,8 @@ class DecoderRNN(nn.Module):
             self.rnn = nn.LSTM(hidden_size, hidden_size, n_layers, batch_first=True)
 
         self.layer_norm = nn.LayerNorm(hidden_size)
-        self.layer_norm_hn = nn.LayerNorm(hidden_size)
-        self.layer_norm_cn = nn.LayerNorm(hidden_size)
+        # self.layer_norm_hn = nn.LayerNorm(hidden_size)
+        # self.layer_norm_cn = nn.LayerNorm(hidden_size)
         # self.layer_norm = nn.BatchNorm1d(hidden_size)
 
         self.dropout = nn.Dropout(dropout_p)
@@ -206,10 +208,14 @@ class DecoderRNN(nn.Module):
         #normalisation
         if self.normalisation == "layer" or self.normalisation == "both":
             output = self.layer_norm(output)
-            hidden[0] = self.layer_norm_hn(hidden[0])
-            hidden[1] = self.layer_norm_hn(hidden[1])
-            # output = self.layer_norm(output.permute(0,2,1))
-            # output = output.permute(0,2,1)
+
+
+            # layer_norm for hidden and cell state does not help
+            # hidden_state = self.layer_norm_hn(hidden[0])
+            # cell_state = self.layer_norm_hn(hidden[1])
+
+            # hidden = (hidden_state, cell_state)
+
 
 
         if self.attention_model == "luong":
