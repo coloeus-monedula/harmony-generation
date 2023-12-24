@@ -308,7 +308,7 @@ def get_chorales(url, dest_folder ):
 # filename - lyrics object
 m21_lyrics_folder = ""
 
-num = 250
+num = 230
 empty_tokens = Tokeniser(max_token = num)
 SILENCE = 128
 
@@ -328,12 +328,14 @@ def main():
         print("Downloading chorales.")
         get_chorales("https://zenodo.org/records/5084914/files/juyaolongpaul/Bach_chorale_FB-v2.0.zip?download=1", in_folder)
 
-
-    add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
+    # add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
+    # print("FBs added. Remember to move test chorales to a separate location if not using the random testset function, and remove them from the filtered folder (which the train set uses)."
+        
 
     global m21_lyrics_folder
     m21_lyrics_folder = out_folder
 
+    # NOTE: used for survey are 36.08, 145.05, 245.14
     # split into train test dataset here - or, can manually move scores from a filtered folder to test folder
     # this is done before train dataset so tokenisation doesn't occur, but actual conversion done after train dataset
     # move_test_chorales(test_folder, filtered_folder, 3)
