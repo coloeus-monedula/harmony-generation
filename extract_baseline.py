@@ -353,7 +353,7 @@ def turn_FBxml_into_lyrics(FBxml: Element, continued_FB = None) -> []:
 
         fig_string = ""
         # turn prefix and suffix into equivalent m21 notations
-        # NOTE: figured bass assumes suffixed modifiers are a new note - hence put in front instead 
+        # NOTE: figured bass module assumes suffixed modifiers are a new note - hence put in front instead 
         if prefix is not None:
             prefix_m21 = XMLToFBModifiers.get(prefix)
             text = prefix_m21 if prefix_m21 is not None else prefix
@@ -377,9 +377,9 @@ def turn_FBxml_into_lyrics(FBxml: Element, continued_FB = None) -> []:
         # if has extend tag need to process it, treat as adding another FB under the type = stop or type = continue for lyrics
         if extend_type == "start":
             continued_FB = fig_string.strip()
-        elif extend_type =="continue":
+        elif extend_type =="continue" and continued_FB is not None:
             fig_string_xml.text = continued_FB
-        elif extend_type=="stop":
+        elif extend_type=="stop" and continued_FB is not None:
             fig_string_xml.text = continued_FB
             continued_FB = None
         
