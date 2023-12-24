@@ -70,11 +70,6 @@ def convert_music21(score_path, return_as_score = False):
         return voices
 
 
-
-#generates a harpsichord realisation below SATB, like how FB is typically used
-# def fb_realisation_harpsichord():
-
-
 def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_realisation = False) -> stream.Score:
     bass_fb = voices["fb"]
     voices.pop("fb")
@@ -114,7 +109,6 @@ def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_r
         # deals with the first bar (if incomplete) so it aligns with realised values
         handle_anacrusis(part)
 
-    # lowestPitch = sorted(soprano.pitches)[0]
 
     # find highest pitch in soprano part as we have to generate all satb parts
     # and hope that alto and tenor don't cross soprano part (which in practice alto part does)
@@ -196,12 +190,6 @@ def handle_anacrusis(part):
             m.number = new_num
 
 
-
-    # TODO: ARGUMENTS INCLUDE: score file name, score folder(defaults to chorales etc.), which SAT part is considered "melody", 
-    # original parts to insert (other than melod) narg --r for replace , --compare keep og. melody part by default is replaced at the very least
-    # add rules true/false, maxpitch (default highest soprano pitch), all of the rule adjustments only if there isn't a --no-rules flag
-
-
 def export_audio(filename, score: stream.Score, bass_voice, sound_folder):
     if not os.path.exists(sound_folder):
         os.makedirs(sound_folder)
@@ -209,8 +197,6 @@ def export_audio(filename, score: stream.Score, bass_voice, sound_folder):
 
     # since FB part is accompaniment, add on bass voice 
     score.insert(-3, bass_voice)
-
-    score.show()
 
     # change to same instruments as predicted audio export
     for el in score.parts[-1].recurse():
@@ -257,7 +243,6 @@ def manual_parser():
 
 
     args = parser.parse_args()
-    # http://www.continuo.ca/files/Figured%20bass%20chart.pdf figured bass cheatsheet
 
     score_path = args.folder + args.file
 
@@ -321,12 +306,9 @@ def manual_parser():
     score_parts["add"].sort(key=lambda x: sort_order.get(x))
     print(score_parts)
 
-    # score_path = "chorales/FB_source/musicXML_master/BWV_470_FB.musicxml"
     # score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
     # fb = extract_FB(score_path)
     score_objs = realise( score_path, rules_args, score_parts, args.maxpitch, args.show)
-
-    # NOTE: FB part is popped off in the realisation stage for the original score, will just appear as SATB
 
     if args.save is not None:
         with open(args.save, "wb") as f:
@@ -344,6 +326,7 @@ def realise(score_path, rules_args, remove_add_dict, maxpitch = "s", show = Fals
     voices = convert_music21(score_path)
     realised = fb_realisation_satb(voices,  maxpitch, remove_add_dict, rules_args, show)
 
+    # NOTE: Accomp part is popped off in the realisation stage for the original score, will just return as SATB.
     score_objs = {
         "realised" : realised, 
         "original" : voices

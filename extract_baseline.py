@@ -50,8 +50,6 @@ standardNoteTypeValue = {
 }
 
 
-# https://stackoverflow.com/questions/13683014/lxml-not-adding-newlines-when-inserting-a-new-element-into-existing-xml do this? 
-
 # remove comparison removes the original continuo part
 def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretree = False, combine_parts = False, remove_OG_accomp = False):
     score_tree = etree.parse(score_path)
@@ -110,11 +108,8 @@ def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretr
         return fb
 
 
-    # TODO: basically extract this into its own FB xmltree - preserve as much info as possible, minus the x and y positioning
 
 # returns a new measure that contains solely FB information only
-# https://stackoverflow.com/questions/4005975/etree-clone-node 
-# TODO: make sure measure info is also saved
 # steps:
 # 1. traverse each immediate subchild. 
 # 2. if not figured bass or note, deep clone, add to "fb measure" xml tree
@@ -122,8 +117,6 @@ def extract_FB(score_path, use_music21_realisation = False, return_whole_scoretr
 # 4. if Note, check Duration 
 # 5. if there is only a single figured bass add that Duration to that figured bass
 # 6. add everything in temp list to xml tree
-
-# TODO: if no figured bass before a note, add a REST in fb xml to track duration
 def create_FB_measure(measure: Element) -> Element:
     measure_attrib = dict(measure.attrib)
     FB_measure: Element = etree.Element("measure")
@@ -168,14 +161,13 @@ def create_FB_measure(measure: Element) -> Element:
 # traverse through fb
 # add figured bass to temp fb list
 # add everything else to measure
-# just call combine two parts lol??
+# used since we're not combining bass voice part and accompaniment's FB notations anymore
 def convert_one_part(part: Element, divisions: int) -> Element:
     return combine_two_parts(part, part, divisions)
 
 # instead of creating a seperate FB part, combines bass voice part and the FB notations as lyrics
 # in order to use the music21 realisations
 # since it is 1:1 each FB notation is matched to a bass voice note or a new note is created
-
 # NOTE: assumes bass and continuo have the same notes albeit transposed an octave.
 def combine_two_parts(continuo: Element, bass: Element, divisions: int) -> Element:
     bass_attrib = dict(bass.attrib)
@@ -204,12 +196,7 @@ def combine_two_parts(continuo: Element, bass: Element, divisions: int) -> Eleme
                 FB_measure.append(deepcopy(bass_child))
                 bass_child = bass_child.getnext()
 
-            # TODO: compare bass note and fb note duration.
-            # if FB note is longer than bass note and next child has FB notation on, insert next FB note in 
-
-
-            # TODO: this happens when there is mismatch between continuo and bass i think?? shows up at the end of a bar
-            # todo: add the CONTINUO NOTE in, split bass?? 
+            # NOTE: this happens when there is note mismatch between continuo and bass - shows up at the end of a bar
             # print(etree.tostring(child, encoding="unicode", pretty_print=True))
             if bass_child is None:
                 print("Error: Bass child is None - suggests a unresolved mismatch between bass and accompaniment part.")
@@ -245,7 +232,6 @@ def append_lyrics_to_bass(fb_bass, lyrics):
 def create_new_bassnote(fb: Element, bass_child: Element, divisions):
     # fetch duration value from first <fb> and add to copied <note>
     # then remove it from <fb>
-
     new_duration = fb[0].xpath("./duration")[0]
     bassnote = deepcopy(bass_child)
     bassnote.xpath("./duration")[0].text = new_duration.text
@@ -337,7 +323,6 @@ def turn_FBxml_into_lyrics(FBxml: Element, continued_FB = None) -> []:
         
         # add <figure-number> and modifier. 
         # NOTE: if has modifier and no number, assumed to be 3 by music21.
-        # TODO:: how to deal with backslash? just write it in and see what happens
         # https://github.com/cuthbertLab/music21/blob/master/music21/figuredBass/notation.py read this for accepted notation
         fig_num = figure.findtext("figure-number")
         prefix = figure.findtext("prefix")

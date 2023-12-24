@@ -30,7 +30,6 @@ def validate_json(data):
 def tensor_to_json(tensor: Tensor, folder, filename, token_path,resolution = 8, program_midi = 0):
     data = {}
 
-    # TODO: change generated piece to piece the FB is taken from?
     metadata = {
         "schema_version": "0.0",
         "title": "Generated Piece",
@@ -81,16 +80,9 @@ def tensor_to_json(tensor: Tensor, folder, filename, token_path,resolution = 8, 
         print(sE)
         raise SchemaError
     
-    # return data
 
-    # TODO: get columns by index number - put into separate rows
-    # S, A, T, B, Acc - discard FB
-    # new track for each column: program, is_drum, name is set
-    # for each track: start timestep counter at 0.
-    # have a "current pitch" variable and a "current duration" variable
-    # every time pitch stays the same, + 1 to current dur
-    # every time pitch variable changes, save the note time pitch  (velocity?) and duration, change current pitch, and reset current duration
-    # NOTE: ASSUMES NO REPEATED CONSECUTIVE NOTES
+
+# NOTE: due to lack of note-off information, assumes notes are always held and never repeated.
 def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:Tensor = None, token_path = None):
     track = {
         "program": program_midi,
@@ -99,7 +91,7 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
     }
 
 
-    # TODO: if fb is not None, increment alonside part
+    # if fb is not None, increment alonside part
     # get reverse lookup alongside 
     if fb is not None:
         if token_path is None:
@@ -135,7 +127,7 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
 
                 if fb is not None:
                     # add a FB for every new note, including None
-                    fb_num = fb[index].item()
+                    fb_num = fb[time].item()
                     fb_str = tokens.get_with_commas(fb_num)
 
                     lyric = {
@@ -170,8 +162,8 @@ def muspy_to_music21(filename,json_folder="generated_JSON", show=False) -> Score
     # muspy_obj.print()
     m21 = muspy.to_music21(muspy_obj)
 
-    # TODO: MANUALLY ADD BACK FB NOTATIONS HERE
     # if notation == "None" or "Unknown", make = None
+    # manually add FBs to music21 object
     fbs = muspy_obj.tracks[-1].lyrics
     accomp = m21.parts[-1].notes
   
@@ -254,28 +246,33 @@ def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl", 
 SILENCE = 128
 
 def main():
+    # NOTE: example code for using preprocessed stuff w funcs
     # dataset: dict[str, Tensor] = torch.load("preprocessed.pt")
     # items = list(dataset.items())
 
     # # remove extension
     # filename = path.splitext(items[0][0])[0]
-
     # tensor_to_json(items[0][1], "generated_JSON", filename+".json")
-    # test using preprocessed stuff
 
-    generated_path = "temp/generated.pt"
-    resolution = 8
+    # # converts single muspy obj to music21. needs JSON file generated from tensor_to_json 
+    # muspy_to_music21("b-BWV_36.08_FB.musicxml")
+
+    # export_audio(filename, "generated_JSON", "audio")
+
+
+
+    # NOTE: code for generating a single audio
+    # generated_path = "temp/generated.pt"
+    # resolution = 8
     # generated = torch.load(generated_path)
-
     # filename = "test"
     # tensor_to_json(generated, "generated_JSON", filename+".json", "artifacts/tokens.pkl")
 
     # export_audio(filename, "generated_JSON", "audio")
 
-
+    # Converts all the files in temp folder to audio
     convert_all_generated()
 
-    # muspy_to_music21("b-BWV_36.08_FB.musicxml")
 if __name__ == "__main__":
     main()
 
