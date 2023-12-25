@@ -125,8 +125,6 @@ def run_trial(bidirectional, attention, n_trials, save):
 
 
 
-# TODO: try with diff token limits
-
 SOS_token = 129
 plot_every = 2
 print_every = 2

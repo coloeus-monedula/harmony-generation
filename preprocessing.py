@@ -6,7 +6,7 @@ from muspy import Music
 from extract_baseline import extract_FB
 from lxml import etree
 from music21 import converter, stream, chord, note as m21_note
-from local_datasets import MuspyChoralesDataset, PytorchChoralesDataset as Chorales, PytorchSplitChoralesDataset as SplitChorales
+from local_datasets import MuspyChoralesDataset
 from torch.utils.data import DataLoader, TensorDataset
 import glob, torch, shutil, numpy as np, random
 import requests, zipfile, io, re
@@ -130,24 +130,17 @@ def add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose):
 # resolution = how many notes per crotchet - goes up to hemisemiquavers by default
 def create_pytorch_train_dataset(filtered_folder, torch_file, resolution, split):
 
-    # TODO: change this to original scores since we don't need to read lyrics into muspy obj anymore
-    # TODO: though with how the dataset is encoded in numbers it encodes pitch but not duration of a single note, so does it matter?
     chorales = MuspyChoralesDataset(filtered_folder, resolution)
 
     dataset = chorales.to_pytorch_dataset(factory=FB_and_pianoroll_factory)
 
     dataset_dict = make_pytorch_dict(chorales, split, dataset)
-    # print(dataset.__class__)
-    # https://stackoverflow.com/questions/68617340/pytorch-best-practice-to-save-big-list-of-tensors or save tensors individually?
-    # for 
+    
     torch.save(dataset_dict, torch_file)
     
     return chorales
 
 
-# TODO: given path to test dataset and path to existing tokens, loads each as mmuspy Music Objects/Musp
-# runs it through FB and pianoroll
-# save as dict for 
 def create_pytorch_test_dataset(test_folder, token_file, torch_file, m21_lyrics_folder, resolution, split):
 
     chorales = MuspyChoralesDataset(test_folder, resolution)
@@ -160,6 +153,7 @@ def create_pytorch_test_dataset(test_folder, token_file, torch_file, m21_lyrics_
     dataset = []
     for i in range(len(chorales)):
         score = chorales[i]
+        # can't just use factory method, since we need to pass in tokeniser object
         pytorch_score = FB_and_pianoroll(score, tokens, m21_lyrics_folder, is_test=True)
 
         dataset.append(pytorch_score)

@@ -496,8 +496,8 @@ parameters = {
     "resolution": 8, #used for generation - should be how many items 1 quarter note is encoded to
     "iterations": 5, #number of models to run and then average
 
-    # model params
     "dropout": 0.49,
+    # model params
     "bidirectional":True,
     "attention_model": "luong", # luong, bahdanau, or None
     "normalisation": "both", # dropout, layer (short for layerNorm), or both

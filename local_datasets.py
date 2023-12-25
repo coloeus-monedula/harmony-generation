@@ -7,10 +7,6 @@ import torch
 
 
 
-# NOTE
-# muspy.FolderDataset.converted_exists() depends solely on a special file named .muspy.success in the folder {root}/_converted/, which serves as an indicator for the existence and integrity of the converted dataset. 
-# If the converted dataset is built by muspy.FolderDataset.convert(), the .muspy.success file will be created as well. 
-# If the converted dataset is created manually, make sure to create the .muspy.success file in the folder {root}/_converted/ to prevent errors.
 class MuspyChoralesDataset(datasets.FolderDataset):
     _info = DatasetInfo(license="Creative Commons Attribution 4.0 International", name="Bach Chorales Figured Bass (BCFB)", description="The complete 139 Johann Sebastian Bach chorales with figured bass encodings in MusicXML, **kern, and MEI formats, based on the Neue Bach Ausgabe (NBA) critical edition", homepage="10.5281/zenodo.5084913")
     _extension = "musicxml"
@@ -50,14 +46,11 @@ class MuspyChoralesDataset(datasets.FolderDataset):
 
     # NOTE: BELOW FUNCTION DOESN'T WORK - KEPT FOR POSTERITY.
     # adds the rest of the figured bass lyrics to the bassline
-    # can't rely on muspy's lyrics - seems to be a bug in there that sometimes causes duplication so we have to do it ourselves, and may as well do it in the tokenisation process :/
-
-    # TODO: get muspy resolution - shows how many timesteps per quarter note. .quarterLength for m21 objects show how many quarter note lengths the Note is. do float(note * resolution) to get timesteps
-    #  for all notes in part:
-    # get duration of note in muspy timesteps and add to counter
-    # if note 
+    # can't rely on muspy's lyrics - seems to be a bug in there that sometimes causes duplication so we have to do it ourselves
+    # may as well do it in the tokenisation process 
     def complete_FB_lyrics(self, music21_lyrics: zip, filename):
         muspy_obj = self.get_by_filename(filename)
+        # get muspy resolution - shows how many timesteps per quarter note. .quarterLength for m21 objects show how many quarter note lengths the Note is. do float(note * resolution) to get timesteps
         print(muspy_obj.resolution)
         muspy_lyrics = muspy_obj.tracks[-1].lyrics
 
