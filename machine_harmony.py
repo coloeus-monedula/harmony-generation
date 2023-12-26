@@ -337,31 +337,42 @@ def plot_attention(weights, input, output):
     plt.show()
 
 
-def eval_model(model_path, token_path, split, test_file, prefix=""):
+def eval_model(model_path, token_path, split, test_file, parameters, prefix="", single_file_name=None):
     print("Evaluating model.")
     if split:
         test_dataset = SplitChorales(test_file)
     else:
             # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
         test_dataset = Chorales(test_file)
-        
+
     checkpoint = torch.load(model_path, map_location=device)
     model_params = checkpoint["params"]
     model, optimiser, _ = get_new_model(token_path, model_params)
     model.load_state_dict(checkpoint["model"])
         # optimiser.load_state_dict(checkpoint["optimiser"])
+    
+    if single_file_name is None:
+        for i in range(len(test_dataset)):
+            # only params needed are resolution and output number
+            accuracy, generated = generate(model, test_dataset[i], parameters)
 
+            generated = generated.cpu()
+            generated_path = path.join("temp", prefix+test_dataset.getname(i)+".pt")
 
-    for i in range(len(test_dataset)):
-        accuracy, generated = generate(model, test_dataset[i], parameters)
+            torch.save({
+                "accuracy": accuracy,
+                "generated": generated
+            }, generated_path)
 
+    # generates for a single selected file only
+    else:
+        test_score = test_dataset.get_by_filename(single_file_name)
+        # only params needed are resolution and output number
+        accuracy, generated = generate(model, test_score, parameters)
         generated = generated.cpu()
-        generated_path = path.join("temp", prefix+test_dataset.getname(i)+".pt")
 
-        torch.save({
-            "accuracy": accuracy,
-            "generated": generated
-        }, generated_path)
+        return accuracy, generated
+
 
 
 
@@ -469,12 +480,12 @@ def main(parameters, meta_params):
 
     # three modes: train, eval, or train + eval
     if run_type == "eval":
-        eval_model(model_path, token_path, split, test_file, prefix)
+        eval_model(model_path, token_path, split, test_file,parameters, prefix)
     elif run_type =="train":
         train_model(model_path, token_path, split, train_file, parameters)
     else:
         train_model(model_path, token_path, split, train_file, parameters)
-        eval_model(model_path, token_path, split, test_file, prefix)
+        eval_model(model_path, token_path, split, test_file,parameters, prefix)
 
 
 # hyperparams and model params
