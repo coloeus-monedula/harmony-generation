@@ -1,5 +1,6 @@
 from os import path
 import pickle
+import time
 from manual_harmony import realise
 from eval import main as eval_score
 from postprocessing import muspy_to_music21, tensor_to_json
@@ -21,13 +22,19 @@ def eval_one(og_score, args_dict, generate_type,chord_checks, transition_checks,
     jaccard_avg = 0
     jaro_avg = 0
     test_accuracy = 0
+    time_avg = 0
 
     # array of objects
     results = []
     for i in range(iterations):
         is_ML = False
         if generate_type == "m21":
+            start = time.time()
             score_objs = realise(og_score, args_dict, remove_add_dict)
+            end = time.time()
+            secs = end - start
+            time_avg +=secs
+
         else:
             is_ML = True
 
@@ -37,7 +44,12 @@ def eval_one(og_score, args_dict, generate_type,chord_checks, transition_checks,
             test_file = args_dict["test_file"]
             JSON_folder = args_dict["JSON_folder"]
             original = args_dict["original"]
+
+            start = time.time()
             realised, test_acc = get_ML_generated(score_name, model_path, token_path, test_file, JSON_folder)
+            end = time.time()
+            secs = end - start
+            time_avg +=secs
 
             score_objs = {
                 "realised": realised,
@@ -60,6 +72,7 @@ def eval_one(og_score, args_dict, generate_type,chord_checks, transition_checks,
     jaro_avg/=iterations
     cost_avg /=iterations
 
+    print("Average time spent to generate a realisation: "+ str(round(time_avg/iterations, 4)) + " secs.")
     if (is_ML):
         test_accuracy /=iterations
         print("Average test accuracy for "+ str(iterations) +" iterations " + str(round(test_acc, 4)))
@@ -72,10 +85,8 @@ def eval_one(og_score, args_dict, generate_type,chord_checks, transition_checks,
         pickle.dump(results, file)
         file.close()
 
-    # TODO: predicted melody will also have additional accomp part - do we remove that for this ?
 
  # remove_add_dict =  parameters for music21 realisation. does default of replacing the soprano part with original chorale's soprano
-
 def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,ML_args,
     remove_add_dict = {
         "remove": ["s"],
@@ -85,21 +96,14 @@ def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,M
     og_score =  "chorales/FB_source/musicXML_master/BWV_{}_FB.musicxml".format(score_num)
     filename = "BWV_{}_FB.musicxml".format(score_num)
 
-    # uni_file = "u-BWV_{}_FB.musicxml".format(score_num)
-    # the predictions for the trained model will currently always be the same, due to the lack of randomness during prediction (as we feed in parts from the score)
-    # TODO: REMOVE
-    # bi_scores = convert_ML_to_m21(bi_file, og_score)
-    # uni_scores = convert_ML_to_m21(uni_file, og_score)
-    # realised_scores = realise(og_score, rules_args, remove_add_dict)
 
     # original score for use with ML eval
     original = converter.parseFile(og_score)
     og_accomp = original.parts[-1]
     original.remove(og_accomp)
 
-    # results_file = "temp/"+bi_file+"_eval.pkl"
-    # print("\nRealised harmony using Music21 module.")
-    # eval_one(og_score, rules_args,"m21", chord_checks=chord_checks, transition_checks=transition_checks,save=save, results_file="artifacts/r-BWV_"+score_num+"_FB_eval.pkl", remove_add_dict=remove_add_dict)
+    print("\nRealised harmony using Music21 module.")
+    eval_one(og_score, rules_args,"m21", chord_checks=chord_checks, transition_checks=transition_checks,save=save, results_file="artifacts/r-BWV_"+score_num+"_FB_eval.pkl", remove_add_dict=remove_add_dict)
 
     bi_args = {
         "score_name":filename,
@@ -131,9 +135,6 @@ def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,M
 # returns ML generation in music21 format
 # covers prediction + postprocessing, cutting out unnecessary code eg. saving to file
 def get_ML_generated(score_name, model_path, token_path, test_file, JSON_folder = "generated_JSON"):
-    # use eval_model
-    print(score_name)
-
     # these are constant
     params = {
         "output_num": 6,
@@ -155,41 +156,6 @@ def get_ML_generated(score_name, model_path, token_path, test_file, JSON_folder 
 
     return realised, accuracy
     
-
-
-# # filename with no .json extension
-# # NOTE: requires generated JSON artifacts from "postprocessing.py"
-# def convert_ML_to_m21(filename, og_score):
-
-#     # get both into m21 format
-#     #NOTE: the predictions for the trained model will currently always be the same, due to the lack of randomness during prediction (as we feed in parts from the score)
-#     realised = muspy_to_music21(filename)
-#     original = converter.parseFile(og_score)
-
-#     r_accomp = realised.parts[-1]
-#     og_accomp = original.parts[-1]
-
-#     # remove both accompaniments
-#     original.remove(og_accomp)
-#     realised.remove(r_accomp)
-
-
-#     score_objs = {
-#         "realised": realised,
-#         "original": original
-#     }
-
-#     # make realised's Parts offsets to 0
-#     for part in realised.parts:
-#         part.offset = 0
-
-#     # transpose accomp an octave up, to match with how music21 analyses the realised and original scores
-#     # since music21 looks at the notes on the score and ignores the fact the actual pitch is an octave lower, but muspy didn't and wrote the notes at their actual pitch
-#     # realised.parts[-1].transpose("P8", inPlace=True)
-
-
-#     return score_objs
-
 
 
 default = {
