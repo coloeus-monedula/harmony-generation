@@ -44,9 +44,10 @@ def eval_one(og_score, args_dict, generate_type,chord_checks, transition_checks,
             test_file = args_dict["test_file"]
             JSON_folder = args_dict["JSON_folder"]
             original = args_dict["original"]
+            randomness_threshold = args_dict["randomness_threshold"]
 
             start = time.time()
-            realised, test_acc = get_ML_generated(score_name, model_path, token_path, test_file, JSON_folder)
+            realised, test_acc = get_ML_generated(score_name, model_path, token_path, test_file,randomness_threshold, JSON_folder)
             end = time.time()
             secs = end - start
             time_avg +=secs
@@ -103,7 +104,7 @@ def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,M
     original.remove(og_accomp)
 
     print("\nRealised harmony using Music21 module.")
-    eval_one(og_score, rules_args,"m21", chord_checks=chord_checks, transition_checks=transition_checks,save=save, results_file="artifacts/r-BWV_"+score_num+"_FB_eval.pkl", remove_add_dict=remove_add_dict)
+    # eval_one(og_score, rules_args,"m21", chord_checks=chord_checks, transition_checks=transition_checks,save=save, results_file="artifacts/r-BWV_"+score_num+"_FB_eval.pkl", remove_add_dict=remove_add_dict)
 
     bi_args = {
         "score_name":filename,
@@ -111,6 +112,7 @@ def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,M
         "token_path":ML_args["token_path"],
         "test_file":ML_args["test_file"],
         "JSON_folder":ML_args["JSON_folder"],
+        "randomness_threshold": ML_args["randomness_threshold"],
         "original": original
 
     }
@@ -120,10 +122,11 @@ def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,M
 
     uni_args = {
         "score_name":filename,
-        "model_path":ML_args["b_model_path"],
+        "model_path":ML_args["u_model_path"],
         "token_path":ML_args["token_path"],
         "test_file":ML_args["test_file"],
         "JSON_folder":ML_args["JSON_folder"],
+        "randomness_threshold": ML_args["randomness_threshold"],
         "original": original
 
     }
@@ -134,13 +137,13 @@ def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,M
 
 # returns ML generation in music21 format
 # covers prediction + postprocessing, cutting out unnecessary code eg. saving to file
-def get_ML_generated(score_name, model_path, token_path, test_file, JSON_folder = "generated_JSON"):
+def get_ML_generated(score_name, model_path, token_path, test_file, randomness_threshold, JSON_folder = "generated_JSON"):
     # these are constant
     params = {
         "output_num": 6,
         "resolution": 8
     }
-    accuracy, generated = eval_model(model_path, token_path, True, test_file, params, single_file_name=score_name )
+    accuracy, generated = eval_model(model_path, token_path, True, test_file, params, single_file_name=score_name, randomness_threshold=randomness_threshold )
 
     basename = path.splitext(score_name)[0]
     tensor_to_json(generated, JSON_folder, "eval_"+basename+".json", token_path=token_path)
@@ -239,6 +242,7 @@ if __name__ == "__main__":
         "token_path":"artifacts/230_tokens.pkl",
         "test_file":"artifacts/230_preprocessed_test.pt",
         "JSON_folder":"generated_JSON",
+        "randomness_threshold": 0
 
     }
 

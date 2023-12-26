@@ -215,7 +215,8 @@ def get_new_model(token_path, params):
     return encode_decode, optimiser, criterion
 
 
-def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hyperparameters, show_attention = False):
+# randomness_threshold is a value between 0 and 1
+def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hyperparameters, randomness_threshold, show_attention = False):
 
     model.eval()
     model.to(device)
@@ -232,16 +233,30 @@ def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hy
     correct, total = 0, 0
 
     with torch.no_grad():
+        prev_SAccFb = None
         for x, y in loader:
-            x, y = x.to(device), y.to(device)
+            # determines whether or not to use testset input or predicted input from previous set
+            if prev_SAccFb is not None:
+                use_predicted = True if random.random() < randomness_threshold else False
+                if use_predicted:
+                    x_input = prev_SAccFb
+                else:
+                    # use actual inputs
+                    x_input = x
+            else:
+                # runs for the first round only
+                x_input = x
 
-            output, _, weights = model(x, None)
+            x_input, y = x_input.to(device), y.to(device)
+
+            output, _, weights = model(x_input, None)
 
             # A,T,B, S+1, Acc+1, FB+1
             preds = torch.argmax(output, -1)
 
             # use SAccFb to predict next steps if needed
             ATB, SAccFb = torch.tensor_split(preds, [int(output_size/2)], 1 )
+            prev_SAccFb = SAccFb
 
             generated_ATB.extend(ATB)
 
@@ -337,7 +352,7 @@ def plot_attention(weights, input, output):
     plt.show()
 
 
-def eval_model(model_path, token_path, split, test_file, parameters, prefix="", single_file_name=None):
+def eval_model(model_path, token_path, split, test_file, parameters, prefix="", single_file_name=None, randomness_threshold = 0):
     print("Evaluating model.")
     if split:
         test_dataset = SplitChorales(test_file)
@@ -354,7 +369,7 @@ def eval_model(model_path, token_path, split, test_file, parameters, prefix="", 
     if single_file_name is None:
         for i in range(len(test_dataset)):
             # only params needed are resolution and output number
-            accuracy, generated = generate(model, test_dataset[i], parameters)
+            accuracy, generated = generate(model, test_dataset[i], parameters, randomness_threshold = randomness_threshold)
 
             generated = generated.cpu()
             generated_path = path.join("temp", prefix+test_dataset.getname(i)+".pt")
@@ -368,7 +383,7 @@ def eval_model(model_path, token_path, split, test_file, parameters, prefix="", 
     else:
         test_score = test_dataset.get_by_filename(single_file_name)
         # only params needed are resolution and output number
-        accuracy, generated = generate(model, test_score, parameters)
+        accuracy, generated = generate(model, test_score, parameters, randomness_threshold = randomness_threshold)
         generated = generated.cpu()
 
         return accuracy, generated
@@ -473,19 +488,20 @@ def main(parameters, meta_params):
     train_file = meta_params["train_file"]
     test_file = meta_params["test_file"]
     prefix = meta_params["prefix"]
-
+    randomness_threshold = meta_params["randomness_threshold"]
     # just set to true since code isn't made for chorales that aren't split between x and y
     split = True
 
 
     # three modes: train, eval, or train + eval
+    # NOTE: eval_model also has a randomness_threshold arg but not implemented in main atm 
     if run_type == "eval":
-        eval_model(model_path, token_path, split, test_file,parameters, prefix)
+        eval_model(model_path, token_path, split, test_file,parameters, prefix, randomness_threshold=randomness_threshold)
     elif run_type =="train":
         train_model(model_path, token_path, split, train_file, parameters)
     else:
         train_model(model_path, token_path, split, train_file, parameters)
-        eval_model(model_path, token_path, split, test_file,parameters, prefix)
+        eval_model(model_path, token_path, split, test_file,parameters, prefix, randomness_threshold=randomness_threshold)
 
 
 # hyperparams and model params
@@ -522,9 +538,10 @@ if __name__ == "__main__":
     parser.add_argument("model", help="Filename where the model should be found or saved to")
     parser.add_argument("type", choices=["train", "eval", "both"], type=str.lower, default="both")
     parser.add_argument("--folder", "--f", default="artifacts/")
-    parser.add_argument("--tokens", default="tokens.pkl")
-    parser.add_argument("--train-file", default="preprocessed.pt")
-    parser.add_argument("--test-file", default="preprocessed_test.pt")
+    parser.add_argument("--tokens", default="230_tokens.pkl")
+    parser.add_argument("--train-file", default="230_preprocessed.pt")
+    parser.add_argument("--test-file", default="230_preprocessed_test.pt")
+    parser.add_argument("--randomness", default=0, type=float, help="Probability of the generated file to use the hidden/predicted input rather than the real input. Between 0 and 1. Default 0 (ie. real input only).")
     parser.add_argument("--params")
     # for the generated pt file
     parser.add_argument("--eval-prefix", default = "")
@@ -543,7 +560,8 @@ if __name__ == "__main__":
         "test_file": args.folder + args.test_file,
         "model_path": args.folder + args.model,
         "type": args.type,
-        "prefix":args.eval_prefix
+        "prefix":args.eval_prefix,
+        "randomness_threshold": args.randomness
     }
 
     main(parameters, meta_params)
