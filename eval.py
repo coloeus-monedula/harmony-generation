@@ -114,6 +114,7 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, is_ML, loc
         # NOTE: might mean that the incompleteness check is unreliable
         fb = score.parts[-1]
         fb_list, chord_counter, note_counter = get_chordified_FBs(chord_checks, is_ML, chords, fb)
+        # print("Chords created by chordify: ",chord_counter, "Original notes in part: ",note_counter)
 
 
     pitches = get_pitches_music21_chords(chords, format="obj")

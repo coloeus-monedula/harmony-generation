@@ -41,8 +41,8 @@ def complete_run(model_path, attention, bidirectional, normalisation,  n_epochs,
 def main(meta_params, run_type):
     meta_params["type"] = run_type
 
-    if meta_params["token_count"] == 270:
-        print("\nToken count max 270 (ie. full tokens).")
+    if meta_params["token_count"] == 269:
+        print("\nToken count max 269 (ie. full tokens).")
         # full tokens
         complete_run("artifacts/bi-l.pt", "luong", True, "both",  25, 455, 230, 0.01,0.49,meta_params)
         complete_run("artifacts/bi-b.pt", "bahdanau", True, "both", 35, 4065, 292, 0.08, 0.67,meta_params)
@@ -75,7 +75,7 @@ def main(meta_params, run_type):
 
 
 meta_params_full = {
-    "token_count": 270,
+    "token_count": 269,
     "tokens":"artifacts/tokens.pkl",
     "train_file": "artifacts/preprocessed.pt",
     "test_file":"artifacts/preprocessed_test.pt",

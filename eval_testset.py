@@ -93,12 +93,12 @@ def convert_ML_to_m21(filename, og_score):
     realised = muspy_to_music21(filename)
     original = converter.parseFile(og_score)
 
-    r_bass = realised.parts[3]
-    og_bass = original.parts[3]
+    r_accomp = realised.parts[-1]
+    og_accomp = original.parts[-1]
 
-    # remove both basses
-    original.remove(og_bass)
-    realised.remove(r_bass)
+    # remove both accompaniments
+    original.remove(og_accomp)
+    realised.remove(r_accomp)
 
 
     score_objs = {
@@ -112,7 +112,7 @@ def convert_ML_to_m21(filename, og_score):
 
     # transpose accomp an octave up, to match with how music21 analyses the realised and original scores
     # since music21 looks at the notes on the score and ignores the fact the actual pitch is an octave lower, but muspy didn't and wrote the notes at their actual pitch
-    realised.parts[-1].transpose("P8", inPlace=True)
+    # realised.parts[-1].transpose("P8", inPlace=True)
 
 
     return score_objs
