@@ -16,6 +16,7 @@ scikit-learn = "*"
 optuna = "*"
 graphviz = "*"
 torchview = "*"
+statsmodels = "*"
 
 [dev-packages]
 
