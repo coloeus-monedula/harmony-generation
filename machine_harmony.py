@@ -216,7 +216,7 @@ def get_new_model(token_path, params):
 
 
 # randomness_threshold is a value between 0 and 1
-def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hyperparameters, randomness_threshold, show_attention = False):
+def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hyperparameters, randomness_threshold):
 
     model.eval()
     model.to(device)
@@ -232,8 +232,16 @@ def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hy
     generated_ATB = []
     correct, total = 0, 0
 
+    # storing attention for visualising
+    # process references
+    # https://github.com/adeveloperdiary/DeepLearning_MiniProjects/blob/master/Neural_Machine_Translation/NMT_RNN_with_Attention_Inference.py
+
+    # attention weights dimension are Batch size, 1, max input length
+    # so attentions = [batch nums, batch size , output num , 3]?
+    attentions = torch.zeros(len(loader),batch_size, output_size, 3 ).to(device) 
     with torch.no_grad():
         prev_SAccFb = None
+        index = 0
         for x, y in loader:
             # determines whether or not to use testset input or predicted input from previous set
             if prev_SAccFb is not None:
@@ -250,6 +258,8 @@ def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hy
             x_input, y = x_input.to(device), y.to(device)
 
             output, _, weights = model(x_input, None)
+            if weights is not None:
+                attentions[index] = weights
 
             # A,T,B, S+1, Acc+1, FB+1
             preds = torch.argmax(output, -1)
@@ -269,21 +279,16 @@ def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hy
             correct += (preds == flattened_y).sum().cpu().item()
             total += preds.size(0)
 
+            index +=1
+
     accuracy = 100 * correct / total
     print("Accuracy on test chorale: {:4f}".format(accuracy))
 
     # convert to torch
     generated_ATB = torch.stack(generated_ATB).long()
 
-    if show_attention:
-        if weights is None:
-            print("Can't show attention matrix as there are no attention weights")
-        else:
-            # TODO
-            pass
 
-
-    return accuracy, join_score(score[0], generated_ATB)
+    return accuracy, join_score(score[0], generated_ATB), attentions
 
 def join_score(x: torch.Tensor, y: torch.Tensor):
 
@@ -332,14 +337,16 @@ def plot(points, plot_epoch, type, title ):
 
     plt.show()
 
-def plot_attention(weights, input, output):
+def plot_attention(attention, input, labels):
     fig, ax = plt.subplots()
 
-    heatmap = ax.matshow(weights.cpu().numpy(), cmap="bone")
+    # get attention into matrix of 3 by 6
+
+    heatmap = ax.matshow(attention.numpy(), cmap="bone")
     fig.colorbar(heatmap)
 
     ax.set_xticklabels(input, rotation = 90)
-    ax.set_yticklabels(output)#
+    ax.set_yticklabels(labels)#
 
     # label at every tick
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
@@ -369,24 +376,29 @@ def eval_model(model_path, token_path, split, test_file, parameters, prefix="", 
     if single_file_name is None:
         for i in range(len(test_dataset)):
             # only params needed are resolution and output number
-            accuracy, generated = generate(model, test_dataset[i], parameters, randomness_threshold = randomness_threshold)
+            accuracy, generated, attentions = generate(model, test_dataset[i], parameters, randomness_threshold = randomness_threshold)
 
             generated = generated.cpu()
+            # will be tensor of 0s for models w/o attention
+            attentions = attentions.cpu()
             generated_path = path.join("temp", prefix+test_dataset.getname(i)+".pt")
 
             torch.save({
                 "accuracy": accuracy,
-                "generated": generated
+                "generated": generated,
+                "attentions":attentions
             }, generated_path)
 
     # generates for a single selected file only
     else:
         test_score = test_dataset.get_by_filename(single_file_name)
         # only params needed are resolution and output number
-        accuracy, generated = generate(model, test_score, parameters, randomness_threshold = randomness_threshold)
+        accuracy, generated, attentions = generate(model, test_score, parameters, randomness_threshold = randomness_threshold)
         generated = generated.cpu()
+        attentions = attentions.cpu()
 
-        return accuracy, generated
+
+        return accuracy, generated, attentions
 
 
 

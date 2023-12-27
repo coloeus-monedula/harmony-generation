@@ -104,7 +104,7 @@ def eval_all_variations(score_num, rules_args, chord_checks, transition_checks,M
     original.remove(og_accomp)
 
     print("\nRealised harmony using Music21 module.")
-    # eval_one(og_score, rules_args,"m21", chord_checks=chord_checks, transition_checks=transition_checks,save=save, results_file="artifacts/r-BWV_"+score_num+"_FB_eval.pkl", remove_add_dict=remove_add_dict)
+    eval_one(og_score, rules_args,"m21", chord_checks=chord_checks, transition_checks=transition_checks,save=save, results_file="artifacts/r-BWV_"+score_num+"_FB_eval.pkl", remove_add_dict=remove_add_dict)
 
     bi_args = {
         "score_name":filename,
@@ -143,7 +143,9 @@ def get_ML_generated(score_name, model_path, token_path, test_file, randomness_t
         "output_num": 6,
         "resolution": 8
     }
-    accuracy, generated = eval_model(model_path, token_path, True, test_file, params, single_file_name=score_name, randomness_threshold=randomness_threshold )
+
+    # attentions aren't used for now
+    accuracy, generated, _ = eval_model(model_path, token_path, True, test_file, params, single_file_name=score_name, randomness_threshold=randomness_threshold )
 
     basename = path.splitext(score_name)[0]
     tensor_to_json(generated, JSON_folder, "eval_"+basename+".json", token_path=token_path)
