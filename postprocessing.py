@@ -3,7 +3,9 @@ import pickle
 from jsonschema.exceptions import ValidationError, SchemaError
 import jsonschema
 import json
+from matplotlib import pyplot as plt, ticker
 import music21
+import numpy as np
 from torch import Tensor
 import torch
 from os import path, makedirs
@@ -241,6 +243,55 @@ def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl", 
         og_audio_name = basename[2:]
         og_path = os.path.join(og_folder, og_audio_name)
         export_audio(og_path, "N/A", "audio", from_muspy=False)
+
+
+
+def plot(points, plot_epoch, type, title ):
+    fig, ax = plt.subplots()
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(base=0.2))
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(base=10))
+
+    # multiply indexes by plot_epoch + 1 to get epoch numbers 
+    x = [(i * plot_epoch) + 1 for i, _ in enumerate(points)]
+
+    ax.plot(x, points)
+
+    ax.set_xlabel("Epoch")
+    if type == "loss":
+        ax.set_ylabel("Loss")
+    elif type == "accuracy":
+        ax.set_ylabel("Accuracy")
+
+    ax.set_title(title)
+
+    plt.show()
+
+# https://github.com/adeveloperdiary/DeepLearning_MiniProjects/blob/master/Neural_Machine_Translation/NMT_RNN_with_Attention_Inference.py
+# references above code 
+def plot_attention(attention, input, labels):
+    fig, ax = plt.subplots()
+
+    # get attention into matrix of 3 by 6 instead of 6 by 3
+    attention = np.transpose(attention.numpy())
+
+    heatmap = ax.matshow(attention, cmap="bone")
+    fig.colorbar(heatmap)
+
+    ax.tick_params(labelsize=10)#
+    ax.set_yticklabels([''] + [int(i.item()) for i in input] + [''])
+    ax.set_xticklabels([''] + [int(i.item()) for i in labels] + [''])#
+
+    # label at every tick
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+
+    plt.ylabel('Input Sequence')
+    plt.xlabel('Output Sequence')
+    plt.title('Attention Weights')
+
+    plt.show()
+    plt.close()
+
 
 
 SILENCE = 128

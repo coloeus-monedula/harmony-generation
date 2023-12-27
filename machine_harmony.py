@@ -10,7 +10,6 @@ from tokeniser import Tokeniser
 import dill as pickle
 from sklearn.metrics import accuracy_score
 import numpy as np, random
-import matplotlib.pyplot as plt, matplotlib.ticker as ticker
 from model import *
 
 is_cuda = torch.cuda.is_available()
@@ -228,17 +227,14 @@ def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hy
     dataset = pad(dataset, batch_size)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle = False)
 
-    # TODO: if we want some randomness as to whether model uses true S,Acc,FB+1 vals or predicted S,Acc,FB+1 vals implement this here
     generated_ATB = []
     correct, total = 0, 0
-
-    # storing attention for visualising
-    # process references
-    # https://github.com/adeveloperdiary/DeepLearning_MiniProjects/blob/master/Neural_Machine_Translation/NMT_RNN_with_Attention_Inference.py
 
     # attention weights dimension are Batch size, 1, max input length
     # so attentions = [batch nums, batch size , output num , 3]?
     attentions = torch.zeros(len(loader),batch_size, output_size, 3 ).to(device) 
+    attentions_x = torch.zeros(len(loader),batch_size,  3 ).to(device)
+    attentions_y = torch.zeros(len(loader),batch_size,  6 ).to(device)
     with torch.no_grad():
         prev_SAccFb = None
         index = 0
@@ -256,10 +252,11 @@ def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hy
                 x_input = x
 
             x_input, y = x_input.to(device), y.to(device)
-
             output, _, weights = model(x_input, None)
             if weights is not None:
                 attentions[index] = weights
+                attentions_x[index] = x_input
+                attentions_y[index] = y
 
             # A,T,B, S+1, Acc+1, FB+1
             preds = torch.argmax(output, -1)
@@ -287,8 +284,17 @@ def generate(model: EncoderDecoder, score: tuple[torch.Tensor, torch.Tensor], hy
     # convert to torch
     generated_ATB = torch.stack(generated_ATB).long()
 
+    # will be tensor of 0s for models w/o attention
+    attentions = attentions.cpu()
+    attentions_x = attentions_x.cpu()
+    attentions_y = attentions_y.cpu()
 
-    return accuracy, join_score(score[0], generated_ATB), attentions
+    attention_pieces = {
+        "weights": attentions,
+        "x": attentions_x,
+        "y": attentions_y
+    }
+    return accuracy, join_score(score[0], generated_ATB), attention_pieces
 
 def join_score(x: torch.Tensor, y: torch.Tensor):
 
@@ -317,48 +323,6 @@ def join_score(x: torch.Tensor, y: torch.Tensor):
     return generated
 
 
-def plot(points, plot_epoch, type, title ):
-    fig, ax = plt.subplots()
-    ax.yaxis.set_major_locator(ticker.MultipleLocator(base=0.2))
-    ax.xaxis.set_major_locator(ticker.MultipleLocator(base=10))
-
-    # multiply indexes by plot_epoch + 1 to get epoch numbers 
-    x = [(i * plot_epoch) + 1 for i, _ in enumerate(points)]
-
-    ax.plot(x, points)
-
-    ax.set_xlabel("Epoch")
-    if type == "loss":
-        ax.set_ylabel("Loss")
-    elif type == "accuracy":
-        ax.set_ylabel("Accuracy")
-
-    ax.set_title(title)
-
-    plt.show()
-
-def plot_attention(attention, input, labels):
-    fig, ax = plt.subplots()
-
-    # get attention into matrix of 3 by 6
-
-    heatmap = ax.matshow(attention.numpy(), cmap="bone")
-    fig.colorbar(heatmap)
-
-    ax.set_xticklabels(input, rotation = 90)
-    ax.set_yticklabels(labels)#
-
-    # label at every tick
-    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
-    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
-
-    plt.xlabel('Input Sequence')
-    plt.ylabel('Output Sequence')
-    plt.title('Attention Weights')
-
-    plt.show()
-
-
 def eval_model(model_path, token_path, split, test_file, parameters, prefix="", single_file_name=None, randomness_threshold = 0):
     print("Evaluating model.")
     if split:
@@ -376,29 +340,27 @@ def eval_model(model_path, token_path, split, test_file, parameters, prefix="", 
     if single_file_name is None:
         for i in range(len(test_dataset)):
             # only params needed are resolution and output number
-            accuracy, generated, attentions = generate(model, test_dataset[i], parameters, randomness_threshold = randomness_threshold)
+            accuracy, generated, attention_pieces = generate(model, test_dataset[i], parameters, randomness_threshold = randomness_threshold)
 
             generated = generated.cpu()
-            # will be tensor of 0s for models w/o attention
-            attentions = attentions.cpu()
+
             generated_path = path.join("temp", prefix+test_dataset.getname(i)+".pt")
 
             torch.save({
                 "accuracy": accuracy,
                 "generated": generated,
-                "attentions":attentions
+                "attentions":attention_pieces
             }, generated_path)
 
     # generates for a single selected file only
     else:
         test_score = test_dataset.get_by_filename(single_file_name)
         # only params needed are resolution and output number
-        accuracy, generated, attentions = generate(model, test_score, parameters, randomness_threshold = randomness_threshold)
+        accuracy, generated, attention_pieces = generate(model, test_score, parameters, randomness_threshold = randomness_threshold)
         generated = generated.cpu()
-        attentions = attentions.cpu()
 
 
-        return accuracy, generated, attentions
+        return accuracy, generated, attention_pieces
 
 
 
