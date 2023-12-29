@@ -408,8 +408,8 @@ def train_model(model_path, token_path, split, train_file, parameters):
                 "lr": parameters["lr"],
                 "SOS_TOKEN": parameters["SOS_TOKEN"]
             },
-            "losses": results[2],
-            "accuracies": results[3]
+            "losses": results[0][2],
+            "accuracies": results[0][3]
         }, model_path)
 
 

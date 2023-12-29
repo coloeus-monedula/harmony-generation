@@ -394,11 +394,9 @@ def FB_frequency_count(dataset_path, token_path, resolution = 8):
         # add all FBs
         all_fbs.extend(dataset[i][0][:,-1])
 
-    reversed = tokens.get_reversed_dict()
     translated_fbs = []
     for fb in all_fbs:
-        translated_fbs.append(reversed.get(fb.item(), "???"))
-        # translated_fbs.append(fb.item())
+        translated_fbs.append(tokens.get_with_commas(fb.item()))
 
 
     frequencies = FreqDist(translated_fbs)
