@@ -462,7 +462,7 @@ def main(parameters, meta_params):
     train_file = meta_params["train_file"]
     test_file = meta_params["test_file"]
     prefix = meta_params["prefix"]
-    randomness_threshold = meta_params["randomness_threshold"]
+    randomness_threshold = meta_params.get("randomness_threshold", 0)
     # just set to true since code isn't made for chorales that aren't split between x and y
     split = True
 

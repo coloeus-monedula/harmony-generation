@@ -1,4 +1,5 @@
 import os
+import time
 from extract_baseline import extract_FB
 from lxml import etree
 from music21 import *
@@ -70,7 +71,7 @@ def convert_music21(score_path, return_as_score = False):
         return voices
 
 
-def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_realisation = False) -> stream.Score:
+def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_realisation = False, verbose = False) -> stream.Score:
     bass_fb = voices["fb"]
     voices.pop("fb")
     fb = figuredBass.realizer.figuredBassFromStream(bass_fb)
@@ -124,7 +125,12 @@ def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_r
     # NOTE: if no realisations loosen upperMaxSemitone then partMovementLimits, then others 
     # print(highestPitch)
     try:
+        start = time.time()
         realisation = fb.realize( maxPitch=highestPitch, fbRules=fb_rules)
+        end = time.time()
+        if verbose:
+            print("Number of solutions: ", realisation.getNumSolutions())
+            print("Duration: ", end - start)
     except Exception as e:
         raise Exception("Error during realisation") from e
 
@@ -229,7 +235,7 @@ def manual_parser():
     rules.add_argument("--single-rules", "--sr", action = "store_true", help = "Applies single possibility rules to possible realisations. ")
 
 
-    # arguments that disable defaults
+    # arguments that disable defaults, as documented in the module guide where they are true by default
     rules.add_argument("--hidden5", "--h5", action = "store_false", help = "DOESN'T forbid hidden 5ths if specified.")
     rules.add_argument("--hidden8", "--h8", action = "store_false", help = "DOESN'T forbid hidden 8ves if specified.")
     rules.add_argument("--parallel5", "--p5", action = "store_false", help = "DOESN'T forbid parallel 5ths if specified.")
@@ -308,7 +314,7 @@ def manual_parser():
 
     # score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
     # fb = extract_FB(score_path)
-    score_objs = realise( score_path, rules_args, score_parts, args.maxpitch, args.show)
+    score_objs = realise( score_path, rules_args, score_parts, args.maxpitch, args.show, verbose=True)
 
     if args.save is not None:
         with open(args.save, "wb") as f:
@@ -322,9 +328,9 @@ def manual_parser():
 
 
 
-def realise(score_path, rules_args, remove_add_dict, maxpitch = "s", show = False):
+def realise(score_path, rules_args, remove_add_dict, maxpitch = "s", show = False, verbose = False):
     voices = convert_music21(score_path)
-    realised = fb_realisation_satb(voices,  maxpitch, remove_add_dict, rules_args, show)
+    realised = fb_realisation_satb(voices,  maxpitch, remove_add_dict, rules_args, show, verbose)
 
     # NOTE: Accomp part is popped off in the realisation stage for the original score, will just return as SATB.
     score_objs = {
