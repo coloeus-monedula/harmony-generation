@@ -323,8 +323,8 @@ def similarity_eval(realised, original, ngrams_n = 2, show = False):
     union = ngrams_r + ngrams_og
     jaccard = len(intersection) / len(union)
 
-    # jaro similarity to take into account position of the ngram since music has a temporal element
-    jaro = jaro_similarity(ngrams_r, ngrams_og)
+    # jaro similarity to take into account position of the interval since music has a temporal element
+    jaro = jaro_similarity(r_progression_text, og_progression_text)
 
     if (show):
         realised_freqdist.plot()
