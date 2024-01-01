@@ -81,11 +81,14 @@ def get_pitches_music21_chords(chords: list, format) -> list:
     pitches_list = []
 
     for aChord in chords.recurse().getElementsByClass(chord.Chord):
+        # NOTE: pitches come in b - t - a - s format, need to reverse it
+        # NOTE: done for obj but not number
         pitches = aChord.pitches
 
         # print("chord:", aChord.lyrics)
         if (format == "obj"):
-            pitches_list.append(pitches)
+            reversed = pitches[::-1]
+            pitches_list.append(reversed)
         elif (format =="number"):
             midi_pitches = (pitch.midi for pitch in pitches)
             pitches_list.append(midi_pitches)
@@ -239,6 +242,7 @@ def get_chordified_FBs(chord_checks, is_ML, chords, fb):
 def eval_chord(chord, checks: dict, adjust_factor,  analyzed_key, fb= None):
 
     cost = 0
+    # print(chord)
     if (checks["close"] and possibility.upperPartsWithinLimit(chord, max_semitone_separation)):
         cost += chord_costs["close"]
     
@@ -273,7 +277,6 @@ def eval_chord(chord, checks: dict, adjust_factor,  analyzed_key, fb= None):
         # print(pitches_to_include)
         if possibility.isIncomplete(chord, pitches_to_include):
             cost += chord_costs["incomplete"]
-
 
     if (checks["crossing"] and possibility.voiceCrossing(chord)):
         cost += chord_costs["crossing"]
