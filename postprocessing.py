@@ -188,13 +188,16 @@ def muspy_to_music21(filename,json_folder="generated_JSON", show=False) -> Score
     return m21
 
 def export_audio(filename, json_folder, sound_folder, from_muspy = True):
-
-    if from_muspy:
-        score = muspy_to_music21(filename,json_folder )
-    else:
-        score = converter.parse(filename)
-        # filename passed in will be full path so just take last part for naming midi
-        filename = path.basename(filename)
+    try:
+        if from_muspy:
+            score = muspy_to_music21(filename,json_folder )
+        else:
+            score = converter.parse(filename)
+            # filename passed in will be full path so just take last part for naming midi
+            filename = path.basename(filename)
+    except FileNotFoundError:
+        print(filename, "not found, audio not exported")
+        return
 
 
     if not path.exists(sound_folder):
@@ -268,7 +271,7 @@ def plot(points, plot_epoch, type, title ):
 
 # https://github.com/adeveloperdiary/DeepLearning_MiniProjects/blob/master/Neural_Machine_Translation/NMT_RNN_with_Attention_Inference.py
 # references above code 
-def plot_attention(attention, input, labels):
+def plot_attention(attention, input, labels, title = "Attention Weights"):
     fig, ax = plt.subplots()
 
     # get attention into matrix of 3 by 6 instead of 6 by 3
@@ -287,7 +290,7 @@ def plot_attention(attention, input, labels):
 
     plt.ylabel('Input Sequence')
     plt.xlabel('Output Sequence')
-    plt.title('Attention Weights')
+    plt.title(title)
 
     plt.show()
     plt.close()
@@ -306,7 +309,7 @@ def main():
     # tensor_to_json(items[0][1], "generated_JSON", filename+".json")
 
     # # converts single muspy obj to music21. needs JSON file generated from tensor_to_json 
-    # muspy_to_music21("b-BWV_36.08_FB.musicxml")
+    # muspy_to_music21("b-BWV_245.15_FB.musicxml")
 
     # export_audio(filename, "generated_JSON", "audio")
 
