@@ -1,9 +1,9 @@
 import argparse
 from music21.figuredBass import possibility, realizerScale
-from music21 import chord, stream, roman
+from music21 import chord, stream, roman, converter
 from nltk import ngrams, FreqDist
 from nltk.metrics.distance import jaro_similarity
-import dill as pickle
+import pickle
 import pprint
 from local_datasets import PytorchSplitChoralesDataset as SplitChorales
 from tokeniser import Tokeniser 
@@ -110,7 +110,6 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, is_ML, loc
     # "If a Score or Part of Measures is provided, a Stream of Measures will be returned" - from Chordify documentation
     # remove redundant false to account for the fact sometimes voices sing the same notes
     chords = score.chordify(addPartIdAsGroup = False, removeRedundantPitches = False)
-
     if chord_checks["incomplete"]:
         #1:1 fb notation to chords, either None or in notationString format 
         # NOTE: for some realisations, still more added figure bass notations than there are chords despite best efforts
@@ -429,7 +428,7 @@ def main(standalone = False, chord_checks = {
     # ie. chord and transition checks aren't passed in via another python program and is via argparse
     if (standalone) :
         parser = argparse.ArgumentParser(description = "Evaluates a realised SATB choral harmony for a single pickled file (from manual_harmony.py) containing realised and original music21 objects.")
-        parser.add_argument("file", default="temp/score_objs", nargs="?")
+        parser.add_argument("file", default="temp/score_objs.pkl", nargs="?")
         parser.add_argument("--all", action="store_true", help="Turns on all evaluation checks.")
         parser.add_argument("--max-semitone", "--mss",type=int, default=12, help="Maximum semitone separation to differentiate what is considered close vs open harmony. Defaults to 12.")
         parser.add_argument("--print", action="store_true")
@@ -437,6 +436,7 @@ def main(standalone = False, chord_checks = {
         chord = parser.add_argument_group("chord checks")
         chord.add_argument("--close", action="store_true", help="Turn on close harmony eval checks.")
         chord.add_argument("--range", action="store_true", help="Turn on on in vocal range eval checks.")
+
         chord.add_argument("--incomplete", action="store_true", help = "Turn on incomplete FB realisation checks.")
         chord.add_argument("--crossing", action="store_true", help = "Turn on voice crossing realisation checks.")
 
@@ -491,8 +491,7 @@ def main(standalone = False, chord_checks = {
     if (scores is None):
         raise Exception("Score item is None")
     
-    realised = scores["realised"]
-    # realised.show()
+    realised = converter.thawStr(scores["realised"])
 
     # reconstructing original score if needed
     if isinstance(scores["original"], stream.Score):

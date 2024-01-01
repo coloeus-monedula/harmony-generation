@@ -4,7 +4,7 @@ from extract_baseline import extract_FB
 from lxml import etree
 from music21 import *
 import argparse
-import dill as pickle
+import pickle
 import traceback
 
 
@@ -227,7 +227,7 @@ def manual_parser():
     parser.add_argument("--default-rules","--dr", action= "store_true", help = "If specified, doesn't apply a custom Rules object to the realisation.")
     parser.add_argument("--keep-realised-melody", "--krm", action="store_true", help="If specified, doesn't replace the melody line with the original melody line.")
     parser.add_argument("--show", action = "store_true", help="Show realisation in score viewer.")
-    parser.add_argument("--save", nargs = "?", const="temp/score_objs", help="Whether to save both the realised and original scores. Note that the original score currently won't include the continuo with FB markings ie. it is just SATB. Defaults to temp/score_objs.")
+    parser.add_argument("--save", nargs = "?", const="temp/score_objs.pkl", help="Whether to save both the realised and original scores. Note that the original score currently won't include the continuo with FB markings ie. it is just SATB. Defaults to temp/score_objs.")
 
     rules = parser.add_argument_group("rules")
     rules.add_argument("--parts-sep", "--ps", default=0, type=int, help = "Maximum amount of semitones apart the upper parts of the realisation (here everything except bass) can be. Default is None (0) ie. no limitations. ")
@@ -316,9 +316,18 @@ def manual_parser():
     # fb = extract_FB(score_path)
     score_objs = realise( score_path, rules_args, score_parts, args.maxpitch, args.show, verbose=True)
 
+
     if args.save is not None:
+        # freezes realised to avoid weakref issue
+        realised_pickled = converter.freezeStr(score_objs["realised"], fmt="pickle") 
+
+        new_score_objs = {
+            "realised" : realised_pickled,
+            "original":  score_objs["original"]
+        }
+
         with open(args.save, "wb") as f:
-            pickle.dump(score_objs, f)
+            pickle.dump(new_score_objs, f)
 
 
     sound_name =os.path.splitext(args.file)[0]
@@ -331,13 +340,13 @@ def manual_parser():
 def realise(score_path, rules_args, remove_add_dict, maxpitch = "s", show = False, verbose = False):
     voices = convert_music21(score_path)
     realised = fb_realisation_satb(voices,  maxpitch, remove_add_dict, rules_args, show, verbose)
-
     # NOTE: Accomp part is popped off in the realisation stage for the original score, will just return as SATB.
+
     score_objs = {
         "realised" : realised, 
         "original" : voices
     }
-    
+
     return score_objs
     # print(satb.get("s").show("text"))
     # print(etree.tostring(fb, encoding="unicode", pretty_print=True))
