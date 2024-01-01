@@ -151,9 +151,13 @@ def get_ML_generated(score_name, model_path, token_path, test_file, randomness_t
     tensor_to_json(generated, JSON_folder, "eval_"+basename+".json", token_path=token_path)
     realised = muspy_to_music21("eval_"+basename, json_folder=JSON_folder)
 
-    # clean up
-    r_accomp = realised.parts[-1]
-    realised.remove(r_accomp)
+    # use accomp if incomplete check turned on for FB notations, otherwise use bass voice
+    if chord_checks["incomplete"]:
+        r_bass = realised.parts[3]
+        realised.remove(r_bass)
+    else:
+        r_accomp = realised.parts[-1]
+        realised.remove(r_accomp)
 
     # make realised's Parts offsets to 0
     for part in realised.parts:
@@ -180,7 +184,7 @@ default = {
 chord_checks = {
 "close": True,
 "range": True,
-"incomplete": False, #NOTE: this is somewhat unreliable - see rules_based_eval() for notes
+"incomplete": True, #NOTE: this is somewhat unreliable - see rules_based_eval() for notes
 "crossing": True
 }
 
