@@ -7,6 +7,10 @@ from postprocessing import muspy_to_music21, tensor_to_json
 from music21 import converter
 from machine_harmony import eval_model
 
+"""
+Runs evaluation metrics for a test set, comparing unidirectional LSTM, bidirectional LSTM, and Music21 generations. 
+Requires models to have been trained beforehand.  
+"""
 
 def eval_one(og_score, args_dict, generate_type,chord_checks, transition_checks, save = False, results_file = "",     remove_add_dict = {
         "remove": ["s"],
@@ -24,7 +28,6 @@ def eval_one(og_score, args_dict, generate_type,chord_checks, transition_checks,
     test_accuracy = 0
     time_avg = 0
 
-    # array of objects
     results = []
     for i in range(iterations):
         is_ML = False
@@ -66,9 +69,6 @@ def eval_one(og_score, args_dict, generate_type,chord_checks, transition_checks,
         jaro_avg += result["similarity"]["jaro"]
         cost_avg +=result["rules"]["total"]
 
-    # pp = pprint.PrettyPrinter()
-    # pp.pprint(results)
-
     jaccard_avg /=iterations
     jaro_avg/=iterations
     cost_avg /=iterations
@@ -85,6 +85,7 @@ def eval_one(og_score, args_dict, generate_type,chord_checks, transition_checks,
         file = open(results_file, "wb")
         pickle.dump(results, file)
         file.close()
+
 
 
  # remove_add_dict =  parameters for music21 realisation. does default of replacing the soprano part with original chorale's soprano

@@ -8,20 +8,17 @@ import pprint
 from local_datasets import PytorchSplitChoralesDataset as SplitChorales
 from tokeniser import Tokeniser 
 
+"""
+Functions for evaluating a generated Bach Chorales harmony. 
+Running the script standalone can evaluate a Music21 generation only.
+Also includes a function for counting figured bass in a dataset, which requires a preprocessed dataset and a saved tokens data file.
+"""
 
 # to differentiate close vs open harmony
 max_semitone_separation = 12
 
 
 # uses https://musictheory.pugetsound.edu/mt21c/VoiceRanges.html as reference and is Bach chorales-specific
-# vocal_ranges = {
-#     "s": ("D4", "F#5"),
-#     "a": ("G3", "C#5"),
-#     "t": ("E-3", "F#4"),
-#     "b": ("E2", "C4")
-# }
-
-
 vocal_ranges = {
     "s": (293, 740),
     "a": (195, 555),
@@ -30,7 +27,8 @@ vocal_ranges = {
 }
 
 # chord location costs
-# http://www.choraleguide.com/vl-spacing.php voice crossing sometimes done to avoid parallels - implies that cost should be lower than parallel costs 
+# http://www.choraleguide.com/vl-spacing.php voice crossing sometimes done to avoid parallels 
+# implies that cost should be lower than parallel costs 
 # but given it's generally to avoid can't be TOO much lower
 chord_costs = {
     # assume to fall under "smooth connection of each part" metric
@@ -54,7 +52,6 @@ transition_costs = {
     "hidden_5th": 3,
     "hidden_8th": 3,
     "overlap": 1.5
-
 
 }
 
@@ -96,10 +93,6 @@ def get_pitches_music21_chords(chords: list, format) -> list:
     return pitches_list
 
 
-    
-# negative rules increase cost bc less likely
-# https://web.mit.edu/music21/doc/moduleReference/moduleChord.html#chord also use the Chord() funcs
-# http://web.mit.edu/music21/doc/usersGuide/usersGuide_09_chordify.html chordify
 def rules_based_eval(score, chord_checks, trans_checks, analysed_key, is_ML, local_adjust = 1, trans_adjust = 1):
     total_costs = 0
     local_list = []
@@ -107,7 +100,7 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, is_ML, loc
     local_total = 0
     trans_total = 0
 
-    # "If a Score or Part of Measures is provided, a Stream of Measures will be returned" - from Chordify documentation
+    # returns stream of Measures if given a Score
     # remove redundant false to account for the fact sometimes voices sing the same notes
     chords = score.chordify(addPartIdAsGroup = False, removeRedundantPitches = False)
     if chord_checks["incomplete"]:
@@ -121,9 +114,6 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, is_ML, loc
 
     pitches = get_pitches_music21_chords(chords, format="obj")
     size = len(pitches)
-    # print(size, chord_counter, note_counter, len(fb_list))
-
-
 
     # everything up to and excluding the n-1 chord
     for i in range(0, size - 1):
@@ -378,11 +368,9 @@ def get_text_progressions(lyrics, has_measures):
 
 
 
-# preprocessed: is the train AND val set
 # dataset is a path to .pt dataset from preprocessing
 # same with tokens for tokeniser
-# resolution: time steps per crotchet beat
-def FB_frequency_count(dataset_path, token_path, resolution = 8):
+def FB_frequency_count(dataset_path, token_path):
     # load tokens into tokeniser
     tokens = Tokeniser()
     with open(token_path, "rb") as f:
@@ -403,10 +391,7 @@ def FB_frequency_count(dataset_path, token_path, resolution = 8):
 
     frequencies = FreqDist(translated_fbs)
 
-    return {
-        "resolution": resolution,
-        "frequencies": frequencies
-    }
+    return frequencies
 
 
 # checks are false by default, turn on by params
@@ -505,7 +490,6 @@ def main(standalone = False, chord_checks = {
     analysed_key = original.analyze('key')
     if (to_print or standalone and args.print ):
         print("Analysed key of", analysed_key, "with correlation coefficient of", round(analysed_key.correlationCoefficient, 4))
-    # original.show()
 
     rules_results = rules_based_eval(realised, chord_checks, transition_checks, analysed_key, is_ML)
 

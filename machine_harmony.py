@@ -9,8 +9,15 @@ import time, math
 from tokeniser import Tokeniser
 import dill as pickle
 from sklearn.metrics import accuracy_score
-import numpy as np, random
+import numpy as random
 from model import *
+
+
+"""
+Functions to train and evaluate an encoder-decoder model. 
+Requires a preprocessed train dataset and/or test dataset, plus the data file used to tokenise the dataset.
+
+"""
 
 is_cuda = torch.cuda.is_available()
 if is_cuda:
@@ -20,7 +27,6 @@ else:
     device = torch.device("cpu")
     print("Using CPU")
 
-# plt.switch_backend('agg')
 
 def time_since(since):
     now = time.time()
@@ -40,9 +46,6 @@ def train(model:EncoderDecoder, train_loader:DataLoader, criterion:nn.CrossEntro
 
     for epoch in range(hyperparameters["n_epochs"]):
         train_loss = 0
-        # if batches = 1 then num_batches = number of scores
-        # num_batches = len(loader)
-
         # number of rounds ie. number of batches in loader
         num_rounds = 0
 
@@ -121,6 +124,7 @@ def train(model:EncoderDecoder, train_loader:DataLoader, criterion:nn.CrossEntro
     return model, final_loss, all_losses, all_accuracies
 
 
+# from train set split into smaller train set and validation set
 def split_train_val(dataset: SplitChorales, n, batch_size) -> (TensorDataset, TensorDataset):
     # tuples
     train = []
@@ -149,7 +153,7 @@ def split_train_val(dataset: SplitChorales, n, batch_size) -> (TensorDataset, Te
 
 
 # splits scores into individual timesteps to use with batch processing
-# dataset is SplitChorales or also (Tensor, Tensor)
+# dataset is SplitChorales or (Tensor, Tensor)
 def split_scores(dataset: SplitChorales) -> TensorDataset:
     all_x, all_y = [], []
 
@@ -328,14 +332,13 @@ def eval_model(model_path, token_path, split, test_file, parameters, prefix="", 
     if split:
         test_dataset = SplitChorales(test_file)
     else:
-            # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
+        # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
         test_dataset = Chorales(test_file)
 
     checkpoint = torch.load(model_path, map_location=device)
     model_params = checkpoint["params"]
     model, optimiser, _ = get_new_model(token_path, model_params)
     model.load_state_dict(checkpoint["model"])
-        # optimiser.load_state_dict(checkpoint["optimiser"])
     
     if single_file_name is None:
         for i in range(len(test_dataset)):
@@ -370,7 +373,7 @@ def train_model(model_path, token_path, split, train_file, parameters):
     if split:
         dataset = SplitChorales(train_file)
     else:
-            # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
+        # NOTE: following model code assumes SplitChorales and doesn't account for Chorales
         dataset = Chorales(train_file)
 
         
@@ -415,34 +418,16 @@ def train_model(model_path, token_path, split, train_file, parameters):
 
     avg_final_loss = 0
     avg_final_accuracy = 0
-    # avg_length = math.ceil(parameters["n_epochs"]/parameters["plot_every"])
-
-    # avg_losses = np.zeros(avg_length, dtype=np.float32)
-    # avg_accuracies = np.zeros(avg_length, dtype=np.float32)
 
 
     for i in range(len(results)):
         model, final_loss, losses, accuracies = results[i]
         avg_final_loss += final_loss
         avg_final_accuracy += accuracies[-1]
-
         # NOTE: can't do avg losses/accuracies due to differing lengths of train time due to early stopping
-        # avg_losses += losses
-        # avg_accuracies += accuracies
 
     avg_final_loss /= iters
     avg_final_accuracy /=iters
-    # avg_losses /= iters
-    # avg_accuracies /= iters
-
-    # # save model with lowest loss
-    # # as well as average running losses and accuracies
-    # torch.save({
-    #     "model": results[0][0].state_dict(),
-    #     # "optimiser": optimiser.state_dict(),
-    #     "losses": avg_losses,
-    #     "accuracies": avg_accuracies
-    # }, model_path)
 
     print("Average final loss across {} iterations: {}".format(iters, avg_final_loss))
     print("Average final accuracy across {} iterations: {}".format(iters, avg_final_accuracy))
@@ -488,16 +473,13 @@ parameters = {
     "early_stopping": 3, #number of epochs with no improvement after which training is stopped 
     "hidden_size": 230,
     "batch_size": 455,
-    #the unknown token is set as 250 and if you set input size = unknown token num it gives an out of index error when reached
-    # # possibly because 0 is also used as a token so off by 1
-    # "input_size" : 252, 
     "validation_size": 2, #number of scores in val
     "output_num": 6,
     "SOS_TOKEN": 129, #for the decoder
     "resolution": 8, #used for generation - should be how many items 1 quarter note is encoded to
     "iterations": 5, #number of models to run and then average
 
-    "dropout": 0.49,
+    "dropout": 0.49, #only used if "normalisation" is dropout or both
     # model params
     "bidirectional":True,
     "attention_model": "luong", # luong, bahdanau, or None
@@ -517,7 +499,7 @@ if __name__ == "__main__":
     parser.add_argument("--test-file", default="230_preprocessed_test.pt")
     parser.add_argument("--randomness", default=0, type=float, help="Probability of the generated file to use the hidden/predicted input rather than the real input. Between 0 and 1. Default 0 (ie. real input only).")
     parser.add_argument("--params")
-    # for the generated pt file
+    # for the generated pt file - adds prefix to file to save
     parser.add_argument("--eval-prefix", default = "")
 
     args = parser.parse_args()
@@ -539,6 +521,3 @@ if __name__ == "__main__":
     }
 
     main(parameters, meta_params)
-
-    # command to run: python machine_harmony.py bi-l-230.pt eval --eval-prefix "b-" --tokens 230_tokens.pkl --test-file 230_preprocessed_test.pt
-    # command to run: python machine_harmony.py uni-l-230.pt eval --eval-prefix "u-" --tokens 230_tokens.pkl --test-file 230_preprocessed_test.pt

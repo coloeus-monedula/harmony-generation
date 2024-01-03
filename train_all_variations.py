@@ -1,8 +1,10 @@
 
 from machine_harmony import main as run
 
-
-
+"""
+Trains and evaluates all models using tuned hyperparameters. 
+Requires relevant preprocessed train datasets, test datasets, and the data file containing the tokens used during preprocessing.  
+"""
 
 def return_params(lr, n_epochs, dropout, attention, bidirectional, normalisation, batch, hidden):
     return {
@@ -21,7 +23,7 @@ def return_params(lr, n_epochs, dropout, attention, bidirectional, normalisation
     "iterations": 5, #number of models to run and then average
 
     # model params
-    "dropout": dropout,
+    "dropout": dropout, #only used if normalisation is dropout or both
     "bidirectional":bidirectional,
     "attention_model": attention, # luong, bahdanau, or None
     "normalisation": normalisation, # dropout, layer (short for layerNorm), or both
@@ -72,7 +74,6 @@ def main(meta_params, run_type):
 
 
 # parameters from tuning, used to run, eval and train each individual model 
-
 
 meta_params_full = {
     "token_count": 269,

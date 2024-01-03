@@ -5,7 +5,9 @@ from muspy.music import Music
 from torch.utils.data import Dataset
 import torch
 
-
+"""
+Custom dataset classes used with MusPy during preprocessing, and used with Pytorch for training and evaluating.
+"""
 
 class MuspyChoralesDataset(datasets.FolderDataset):
     _info = DatasetInfo(license="Creative Commons Attribution 4.0 International", name="Bach Chorales Figured Bass (BCFB)", description="The complete 139 Johann Sebastian Bach chorales with figured bass encodings in MusicXML, **kern, and MEI formats, based on the Neue Bach Ausgabe (NBA) critical edition", homepage="10.5281/zenodo.5084913")

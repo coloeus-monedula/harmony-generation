@@ -7,17 +7,18 @@ import argparse
 import pickle
 import traceback
 
+"""
+Generates harmony using Music21, plus saving and exporting as MIDI audio functions.
+Can be run without running extract_baseline.py beforehand.
+"""
 
-
-# NOTE: assumes a SATB + continuo part that doubles the bass voice - pieces like BWV_248.64_FB unlikely to work
 def extract_voices(score_path):
 
     score = converter.parseFile(score_path)
     parts = score.parts
     # assumes SATB is in order
-    # part_list = root.xpath("./part-list[1]")
 
-    # result in dictionary of key (voice) and 
+    # result in dictionary of key (voice) and part
     voices = { 
         "s": parts[0],
         "a": parts[1],
@@ -55,8 +56,6 @@ def convert_music21(score_path, return_as_score = False):
     parts[3].partAbbreviation = "B"
     parts[-1].partAbbreviation = "FB"
 
-    # score.show()
-
     if return_as_score:
         return score
     else:
@@ -76,8 +75,6 @@ def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_r
     voices.pop("fb")
     fb = figuredBass.realizer.figuredBassFromStream(bass_fb)
 
-    # changing rules
-    # http://www.choraleguide.com/vl-spacing.php ?
     fb_rules = None
 
     if rules_args is not None:
@@ -123,7 +120,6 @@ def fb_realisation_satb(voices, maxpitch, score_parts, rules_args = None, show_r
 
     # have to do 4 parts, else 0 solutions
     # NOTE: if no realisations loosen upperMaxSemitone then partMovementLimits, then others 
-    # print(highestPitch)
     try:
         start = time.time()
         realisation = fb.realize( maxPitch=highestPitch, fbRules=fb_rules)
@@ -312,8 +308,6 @@ def manual_parser():
     score_parts["add"].sort(key=lambda x: sort_order.get(x))
     print(score_parts)
 
-    # score_path = "chorales/FB_source/musicXML_master/BWV_3.06_FB.musicxml"
-    # fb = extract_FB(score_path)
     score_objs = realise( score_path, rules_args, score_parts, args.maxpitch, args.show, verbose=True)
 
 
@@ -348,10 +342,6 @@ def realise(score_path, rules_args, remove_add_dict, maxpitch = "s", show = Fals
     }
 
     return score_objs
-    # print(satb.get("s").show("text"))
-    # print(etree.tostring(fb, encoding="unicode", pretty_print=True))
-
-    # added_fb_xml = extract_FB(score_path, return_whole_scoretree=True, use_music21_realisation=True)
 
 if __name__ == "__main__":
     manual_parser()

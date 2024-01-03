@@ -1,26 +1,15 @@
 from xml.etree.ElementTree import Element
 from lxml import etree
 from copy import deepcopy
-import math
 
-
-# modifiers dictionary taken from 
-# https://github.com/cuthbertLab/music21/blob/master/music21/figuredBass/notation.py 
-# modifiersDictXmlToM21 = {
-#     'sharp': '#',
-#     'flat': 'b',
-#     'natural': '\u266e',
-#     'double-sharp': '##',
-#     'flat-flat': 'bb',
-#     'backslash': '\\',
-#     'slash': '/',
-#     'cross': '+'
-# }
+"""
+Functions for transferring figured bass notation stored in <figured-bass> MusicXML into <lyric> tags. 
+Needed for Music21 realisations to work. 
+"""
 
 # modifier information taken from https://web.mit.edu/music21/doc/moduleReference/moduleFiguredBassNotation.html
 # only accepts flats, sharps, naturals, double flats and double sharps
-# NOTE: dataset encodes forward slash = lowered intervals. backslash = raised intervals according to corresponding paper
-# NOTE: cross appears to be allowed as a suffix but will become prefixed - translate to sharp instead if realisation will be affected by that?
+# NOTE: according to the its paper BCFB dataset encodes forward slash = lowered intervals. backslash = raised intervals 
 XMLToFBModifiers = {
     'sharp': '#',
     'flat': 'b',
@@ -29,7 +18,7 @@ XMLToFBModifiers = {
     'flat-flat': 'bb',
     'backslash': '#',
     'slash': 'b',
-    'cross': '+'
+    'cross': '+' #NOTE: appears to be allowed as a suffix but will become prefixed regardless
 }
 
 # names taken from https://w3c.github.io/musicxml/musicxml-reference/data-types/note-type-value/
@@ -197,7 +186,6 @@ def combine_two_parts(continuo: Element, bass: Element, divisions: int) -> Eleme
                 bass_child = bass_child.getnext()
 
             # NOTE: this happens when there is note mismatch between continuo and bass - shows up at the end of a bar
-            # print(etree.tostring(child, encoding="unicode", pretty_print=True))
             if bass_child is None:
                 print("Error: Bass child is None - suggests a unresolved mismatch between bass and accompaniment part.")
                 continue
@@ -248,14 +236,10 @@ def create_new_bassnote(fb: Element, bass_child: Element, divisions):
     dot_num = 0
     if (new_note_type is None):
         # creates dotted note
-        # print("Error: no note type found for note value of", new_note_value, ". Defaulting to crotchets")
-        # new_note_type = "quarter"
-        # print(new_note_value)
         (new_note_type, dot_num) = create_dotted_note(new_note_value)
 
     type_xml=bassnote.xpath("./type")[0]
     type_xml.text = new_note_type
-    # print(etree.tostring(bassnote, encoding="unicode", pretty_print=True))
 
     # add dots if they're there
     for i in range(dot_num):
@@ -304,8 +288,6 @@ def create_dotted_note(note_value):
 
 
 # transforms into lyrics xml tag
-# if multiple have to add number attribute
-# if has duration element keep that but remove later ADD TO FIRST LYRIC ONLY (of numbered elements)
 def turn_FBxml_into_lyrics(FBxml: Element, continued_FB = None) -> []:
     lyrics = []
 
@@ -313,10 +295,13 @@ def turn_FBxml_into_lyrics(FBxml: Element, continued_FB = None) -> []:
     duration = FBxml.find("duration")
     for i in range (len(figures)):
         figure:Element = figures[i]
+
+        # each <lyric> if there are multiple needs a unique number
         number = i+1
         lyric = etree.Element("lyric", number =str(number) )
 
-        # appends duration to first <lyric> for use in later processing
+        # appends duration to first <lyric>, for use in later processing
+        # add to first <lyric> only
         if (i == 0 and duration is not None):
             dur = etree.SubElement(lyric, "duration")
             dur.text = duration.text
@@ -328,6 +313,7 @@ def turn_FBxml_into_lyrics(FBxml: Element, continued_FB = None) -> []:
         prefix = figure.findtext("prefix")
         suffix = figure.findtext("suffix")
 
+        # deal with <extend>
         extend = figure.xpath("./extend")
         extend_type = None
         if (len(extend) > 0):
@@ -372,27 +358,18 @@ def turn_FBxml_into_lyrics(FBxml: Element, continued_FB = None) -> []:
 
     return (lyrics, continued_FB)
 
-        
-    # check if multiple <figure>s - these are converted to 1:1 <lyrics> with number appended.
-        #convert.
-        # check if duration element is there.  duration added to first one as subelement if so
-    # no multiple <figure>
-        #convert.
-        # check duration element add if so
-
-
 
 def main():
-    # score_path = "./chorales/FB_source/musicXML_master/BWV_177.05b_FB.musicxml"
     score_path = "./chorales/FB_source/musicXML_master/BWV_248.28_FB.musicxml"
-    # score_path = "./temp/test.musicxml"
 
     fb = extract_FB(score_path, use_music21_realisation = True, return_whole_scoretree=True)
 
-    file = open("temp/test_fb.musicxml", "wb")
-    file.write(etree.tostring(fb, pretty_print=True))
-    file.close()
-    # print(etree.tostring(fb, encoding="unicode", pretty_print=True))
+    print(etree.tostring(fb, encoding="unicode", pretty_print=True))
+
+    # write to file if needed
+    # file = open("temp/test_fb.musicxml", "wb")
+    # file.write(etree.tostring(fb, pretty_print=True))
+    # file.close()
 
 if __name__ == "__main__":
     main()

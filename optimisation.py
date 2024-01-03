@@ -1,5 +1,3 @@
-# hyperparameter tuning
-
 import argparse
 import joblib
 import torch
@@ -11,6 +9,10 @@ from model import *
 from local_datasets import PytorchSplitChoralesDataset as SplitChorales
 from torch.utils.data import DataLoader
 
+"""
+Hyperparameter tuning using Optuna. 
+"""
+
 is_cuda = torch.cuda.is_available()
 if is_cuda:
     device = torch.device("cuda")
@@ -18,7 +20,6 @@ if is_cuda:
 else:
     device = torch.device("cpu")
     print("Using CPU")
-
 
 
 
@@ -144,10 +145,10 @@ if __name__ == "__main__":
     token_path = "artifacts/{}_tokens.pkl".format(num)
     train_file = "artifacts/{}_preprocessed.pt".format(num)
     print("Token number = {}".format(num))
-    # run_trial(True, "luong", 70, "artifacts/bi-l-{}.joblib".format(num))
-    # run_trial(True, "bahdanau", 70, "artifacts/bi-b-{}.joblib".format(num))
-    # run_trial(True, None, 70, "artifacts/bi-None-{}.joblib".format(num))
-    # run_trial(False, None, 70, "artifacts/uni-None-{}.joblib".format(num))
+    run_trial(True, "luong", 70, "artifacts/bi-l-{}.joblib".format(num))
+    run_trial(True, "bahdanau", 70, "artifacts/bi-b-{}.joblib".format(num))
+    run_trial(True, None, 70, "artifacts/bi-None-{}.joblib".format(num))
+    run_trial(False, None, 70, "artifacts/uni-None-{}.joblib".format(num))
     run_trial(False, "luong", 70, "artifacts/uni-l-{}.joblib".format(num))
     run_trial(False, "bahdanau", 70, "artifacts/uni-b-{}.joblib".format(num))
 

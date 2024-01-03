@@ -12,9 +12,25 @@ import glob, torch, shutil, numpy as np, random
 import requests, zipfile, io, re
 from tokeniser import Tokeniser
 
-np.set_printoptions(threshold=np.inf)
+
+"""
+Functions to turn a raw BCFB dataset into a preprocessed train and test dataset (which are dictionaries of score name - tensor), 
+ready to use for machine learning. 
+This includes:
+- downloading the dataset
+- filtering out ineligible scores
+- adding figured bass notation in <lyric> format to all remaining scores
+- randomly selecting some scores to be in the test set, and separating those from the train set
+- creating the preprocessed train dataset, tokenising the figured bass and saving this in a Tokeniser object
+- saving the Tokeniser data 
+- creating the preprocessed test dataset, which uses the train dataset's tokeniser data but DOESN'T add to it
+
+main() contains the full processing pipeline. Comment lines out as needed.
+
+"""
 
 
+# NOTE: not used - kept for posterity
 # music21 combines the two parts using chordify, takes the top layer of notes if there's a chord
 # then export to musicxml, open and grab the part in xml, replace where bass is in original score
 # output as musicxml or as file
@@ -127,7 +143,7 @@ def add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose):
 
 
 # folder is path to converted FB xml
-# resolution = how many notes per crotchet - goes up to hemisemiquavers by default
+# resolution = how many notes per crotchet - goes up to hemisemiquavers / resolution = 8 by default
 def create_pytorch_train_dataset(filtered_folder, torch_file, resolution, split):
 
     chorales = MuspyChoralesDataset(filtered_folder, resolution)
@@ -213,7 +229,7 @@ def tokenise_FB(lyrics: list[m21_note.Lyric], is_test:bool):
 
 
 # factory method to call, uses pianoroll conversion inside but also adds on encoded FB using tokenise_FB and ignores velocity
-# NOTE: CAN'T USE MUSPY PIANOROLL FORMAT, make our own with pitch numbers instead - https://github.com/ageron/handson-ml3/blob/main/15_processing_sequences_using_rnns_and_cnns.ipynb
+# NOTE: CAN'T USE MUSPY PIANOROLL FORMAT, make our own with pitch numbers instead 
 # for use when converting a Muspy dataset for training
 def FB_and_pianoroll_factory(score: Music):
     return FB_and_pianoroll(score, empty_tokens, m21_lyrics_folder, is_test=False)
@@ -302,6 +318,7 @@ def get_chorales(url, dest_folder ):
 # filename - lyrics object
 m21_lyrics_folder = ""
 
+# edit num to edit maximum token number
 num = 230
 empty_tokens = Tokeniser(max_token = num)
 SILENCE = 128
@@ -322,17 +339,15 @@ def main():
         print("Downloading chorales.")
         get_chorales("https://zenodo.org/records/5084914/files/juyaolongpaul/Bach_chorale_FB-v2.0.zip?download=1", in_folder)
 
-    # add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
-    # print("FBs added. Remember to move test chorales to a separate location if not using the random testset function, and remove them from the filtered folder (which the train set uses)."
-        
+    add_FB_to_scores(in_folder, filtered_folder, out_folder, verbose=True)
+    print("FBs added. Remember to move test chorales to a separate location if not using the random testset function, and remove them from the filtered folder (which the train set uses).")
 
     global m21_lyrics_folder
     m21_lyrics_folder = out_folder
 
-    # NOTE: used for survey are 36.08, 145.05, 245.14
     # split into train test dataset here - or, can manually move scores from a filtered folder to test folder
     # this is done before train dataset so tokenisation doesn't occur, but actual conversion done after train dataset
-    # move_test_chorales(test_folder, filtered_folder, 3)
+    move_test_chorales(test_folder, filtered_folder, 3)
 
     create_pytorch_train_dataset(filtered_folder, torch_save,resolution, split=True)
 
@@ -341,8 +356,6 @@ def main():
         pickle.dump(empty_tokens.save(), f)
 
     create_pytorch_test_dataset(test_folder, token_save, torch_test_save, m21_lyrics_folder, resolution, split=True)
-    # file = "./chorales/FB_source/musicXML_master/BWV_248.59_FB.musicxml"
-    # combine_bassvoice_accomp(file)
 
 
 if __name__ == "__main__":

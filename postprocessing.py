@@ -4,7 +4,6 @@ from jsonschema.exceptions import ValidationError, SchemaError
 import jsonschema
 import json
 from matplotlib import pyplot as plt, ticker
-import music21
 import numpy as np
 from torch import Tensor
 import torch
@@ -13,9 +12,16 @@ import os
 import muspy
 from music21.stream import Score
 from music21 import instrument, converter
-
 from tokeniser import Tokeniser
 
+"""
+Converts one or more machine generations (in tensor format) back into a Music21 score, via using MusPy as a intermediary. 
+Also allows exporting of audio, and includes functions to plot model graphs and attention weights.
+Requires MusPy's music.schema.json file, the tokens data file used to tokenise the dataset, 
+and the generated harmony/harmonies in .pt format.
+"""
+
+# for use when creating JSON dict, in case using None directly causes issues 
 null = None
 
 # have to do this since json.schema.path in muspy's validate func appears to be incorrect
@@ -23,7 +29,6 @@ def validate_json(data):
     schema_path = "music.schema.json"
     with open(schema_path, encoding="utf-8") as f:
         schema = json.load(f)
-
     jsonschema.validate(data, schema)
 
 
@@ -52,16 +57,14 @@ def tensor_to_json(tensor: Tensor, folder, filename, token_path,resolution = 8, 
     for i in range(4):
         track = add_track(tensor[:,i], track_name.get(i), program_midi)
         tracks.append(track)
-    # make this louder
+
     accomp = add_track(tensor[:, 4], "Accompaniment", 0, fb=tensor[:,-1], token_path =token_path , velocity=127)
 
     tracks.append(accomp)
 
-
     data["metadata"] = metadata
     data["resolution"] = resolution
     data["tracks"] = tracks
-
 
     try:
         validate_json(data)
@@ -85,6 +88,7 @@ def tensor_to_json(tensor: Tensor, folder, filename, token_path,resolution = 8, 
 
 
 # NOTE: due to lack of note-off information, assumes notes are always held and never repeated.
+# velocity = volume of part
 def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:Tensor = None, token_path = None):
     track = {
         "program": program_midi,
@@ -92,8 +96,7 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
         "name" : part_name 
     }
 
-
-    # if fb is not None, increment alonside part
+    # if fb is not None, increment alongside part
     # get reverse lookup alongside 
     if fb is not None:
         if token_path is None:
@@ -103,7 +106,6 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
         with open(token_path, "rb") as f:
             data = pickle.load(f)
             tokens.load(data)
-
 
     notes = []
     converted_fbs = []
@@ -146,10 +148,7 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
         else:
             current_duration+=1  
         
-            
-
         index +=1
-                  
 
     track["notes"] = notes
     if fb is not None and token_path is not None:
@@ -161,7 +160,6 @@ def add_track(part: Tensor, part_name:str, program_midi:int, velocity = 64, fb:T
 def muspy_to_music21(filename,json_folder="generated_JSON", show=False) -> Score:
     filepath = path.join(json_folder,filename+".json")
     muspy_obj = muspy.load_json(filepath)
-    # muspy_obj.print()
     m21 = muspy.to_music21(muspy_obj)
 
     # if notation == "None" or "Unknown", make = None
@@ -181,11 +179,11 @@ def muspy_to_music21(filename,json_folder="generated_JSON", show=False) -> Score
                 single = fb_split[i]
                 note.addLyric(single, i+1)
 
-
     if (show):
         m21.show()
 
     return m21
+
 
 def export_audio(filename, json_folder, sound_folder, from_muspy = True):
     try:
@@ -199,7 +197,6 @@ def export_audio(filename, json_folder, sound_folder, from_muspy = True):
         print(filename, "not found, audio not exported")
         return
 
-
     if not path.exists(sound_folder):
         makedirs(sound_folder)
     filepath = path.join(sound_folder, filename+".midi")
@@ -211,23 +208,16 @@ def export_audio(filename, json_folder, sound_folder, from_muspy = True):
         if 'Instrument' in el.classes:
             el.activeSite.replace(el, instrument.Contrabass())
 
-
     # transpose an octave down - music21 looks at the  notes on the score and ignores the fact the actual pitch is an octave lower, unlike musescore
     # meanwhile, muspy encodes actual pitch presumably
     if from_muspy == False:
         score.parts[-1].transpose("P-8", inPlace=True)
-        # score.show()
-
-
-
-
-
+        
     score.write("midi", fp=filepath)
 
 
-# converts all generated to JSON -> music21 -> midi
+# converts all generated in the temp folder to JSON -> music21 -> midi
 # also adds original audio for comparison
-# returns audio
 def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl", og_folder = "./chorales/FB_source/musicXML_master"):
     search = path.join(folder, "*.pt")
     files = glob.glob(search)
@@ -295,24 +285,13 @@ def plot_attention(attention, input, labels, title = "Attention Weights"):
     plt.show()
     plt.close()
 
-
-
+# same value as used in preprocessing and tokenisation
 SILENCE = 128
 
 def main():
-    # NOTE: example code for using preprocessed stuff w funcs
-    # dataset: dict[str, Tensor] = torch.load("preprocessed.pt")
-    # items = list(dataset.items())
-
-    # # remove extension
-    # filename = path.splitext(items[0][0])[0]
-    # tensor_to_json(items[0][1], "generated_JSON", filename+".json")
-
-    # # converts single muspy obj to music21. needs JSON file generated from tensor_to_json 
+    # NOTE: converts single muspy obj to music21. needs JSON file generated from tensor_to_json first
     # muspy_to_music21("b-BWV_245.15_FB.musicxml")
-
     # export_audio(filename, "generated_JSON", "audio")
-
 
 
     # NOTE: code for generating a single audio
@@ -324,7 +303,7 @@ def main():
 
     # export_audio(filename, "generated_JSON", "audio")
 
-    # Converts all the files in temp folder to audio
+    # NOTE: Converts all the files in temp folder to audio
     convert_all_generated()
 
 if __name__ == "__main__":
