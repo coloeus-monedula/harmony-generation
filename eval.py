@@ -269,22 +269,17 @@ def eval_chord(chord, checks: dict, adjust_factor,  analyzed_key, fb= None):
 
     # NOTE: currently only checks if there are explicit FB notations on the screen
     if (checks["incomplete"] and fb is not None) :
-        if (len(chord) < 4):
-            print("Less than 4 notes in chord: automatically fail incomplete check.")
-            cost += chord_costs["incomplete"]
-            
-        else:
-            (s, a, t, b) = chord
+        b = chord[-1]
 
-            # what the program thinks the realised piece's keysig is - may not be the original's
-            tonic = analyzed_key.tonic.name
-            key_scale = analyzed_key.mode
-            # print(tonic, key_scale)
-            scale = realizerScale.FiguredBassScale(tonic, key_scale)
-            pitches_to_include = scale.getPitchNames(b.nameWithOctave, fb)
-            # print(pitches_to_include)
-            if possibility.isIncomplete(chord, pitches_to_include):
-                cost += chord_costs["incomplete"]
+        # what the program thinks the realised piece's keysig is - may not be the original's
+        tonic = analyzed_key.tonic.name
+        key_scale = analyzed_key.mode
+        # print(tonic, key_scale)
+        scale = realizerScale.FiguredBassScale(tonic, key_scale)
+        pitches_to_include = scale.getPitchNames(b.nameWithOctave, fb)
+        # print(pitches_to_include)
+        if possibility.isIncomplete(chord, pitches_to_include):
+            cost += chord_costs["incomplete"]
 
     if (checks["crossing"] and possibility.voiceCrossing(chord)):
         cost += chord_costs["crossing"]

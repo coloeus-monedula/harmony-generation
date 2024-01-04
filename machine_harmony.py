@@ -343,6 +343,7 @@ def eval_model(model_path, token_path, split, test_file, parameters, prefix="", 
     
     if single_file_name is None:
         for i in range(len(test_dataset)):
+            print("Score is", test_dataset.getname(i))
             # only params needed are resolution and output number
             accuracy, generated, attention_pieces = generate(model, test_dataset[i], parameters, randomness_threshold = randomness_threshold)
 
