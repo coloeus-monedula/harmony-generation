@@ -4,7 +4,7 @@ Final year dissertation project for a Masters in Computer Science at the Univers
 `setup.sh` contains a script to install the project on a university system for Linux. Installation for other systems follows something similar. Below are the instructions for a Linux system, that when used in terminal creates a virtual environment called "venv" and installs everything within there. Note that Python 3.10 is required for certain libraries to function as intended.
 
 ```
-python3.10 -m venv venv
+python -m venv venv
 source venv/bin/activate
 pip install pipenv
 pipenv install
