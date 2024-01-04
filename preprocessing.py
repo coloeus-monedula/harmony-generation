@@ -319,7 +319,7 @@ def get_chorales(url, dest_folder ):
 m21_lyrics_folder = ""
 
 # edit num to edit maximum token number
-num = 230
+num = 250
 empty_tokens = Tokeniser(max_token = num)
 SILENCE = 128
 

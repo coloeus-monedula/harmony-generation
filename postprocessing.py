@@ -217,8 +217,10 @@ def export_audio(filename, json_folder, sound_folder, from_muspy = True):
 
 
 # converts all generated in the temp folder to JSON -> music21 -> midi
-# also adds original audio for comparison
-def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl", og_folder = "./chorales/FB_source/musicXML_master"):
+# also adds original audio for compariso
+# prefix_num determines how many characters to cut off to get file for original audio
+# NOTE: by default assumes only u- and b- prefix audios are in folder
+def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl", og_folder = "./chorales/FB_source/musicXML_master", prefix_num = 2, convert_original = True):
     search = path.join(folder, "*.pt")
     files = glob.glob(search)
 
@@ -232,10 +234,11 @@ def convert_all_generated(folder = "temp", tokens = "artifacts/230_tokens.pkl", 
         export_audio(basename, "generated_JSON", "audio")
 
         # original audio
-        # NOTE: assumes only u- and b- prefix audios are in folder
-        og_audio_name = basename[2:]
-        og_path = os.path.join(og_folder, og_audio_name)
-        export_audio(og_path, "N/A", "audio", from_muspy=False)
+        if convert_original:
+            print("Converting original audio for", basename)
+            og_audio_name = basename[prefix_num:]
+            og_path = os.path.join(og_folder, og_audio_name)
+            export_audio(og_path, "N/A", "audio", from_muspy=False)
 
 
 
@@ -304,7 +307,9 @@ def main():
     # export_audio(filename, "generated_JSON", "audio")
 
     # NOTE: Converts all the files in temp folder to audio
-    convert_all_generated()
+    prefix_num = 0
+    convert_original = True
+    convert_all_generated(prefix_num= prefix_num, convert_original=convert_original)
 
 if __name__ == "__main__":
     main()

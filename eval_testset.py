@@ -202,7 +202,7 @@ if __name__ == "__main__":
     options = ["36.08", "145.05", "245.14"]
 
     # does defaults from manual_harmony, with a few modifications
-    rules_args = {"36.08": {
+    rules_args = {options[0]: {
         "separation":None,
         "consecutive": False,
         "single":False,
@@ -215,7 +215,7 @@ if __name__ == "__main__":
         "incomplete": False,
         "move_lim": [(1,5), (2, 14), (3, 14)]
     },
-    "145.05":  {
+    options[1]:  {
         "separation":None,
         "consecutive": True,
         "single":True,
@@ -228,7 +228,7 @@ if __name__ == "__main__":
         "incomplete": True,
         "move_lim": [(1,5), (2, 14), (3, 14)]
     },
-    "245.14":  {
+    options[2]:  {
         "separation":None,
         "consecutive": False,
         "single":True,

@@ -1,6 +1,6 @@
 import argparse
 import json
-from os import path
+from os import makedirs, path
 import torch.nn as nn
 import torch
 from local_datasets import PytorchChoralesDataset as Chorales, PytorchSplitChoralesDataset as SplitChorales
@@ -9,7 +9,7 @@ import time, math
 from tokeniser import Tokeniser
 import dill as pickle
 from sklearn.metrics import accuracy_score
-import numpy as random
+import random
 from model import *
 
 
@@ -18,6 +18,9 @@ Functions to train and evaluate an encoder-decoder model.
 Requires a preprocessed train dataset and/or test dataset, plus the data file used to tokenise the dataset.
 
 """
+
+# put at top so can use in function params
+SILENCE = 128
 
 is_cuda = torch.cuda.is_available()
 if is_cuda:
@@ -178,7 +181,7 @@ def pad(split_tensors, batch_size):
     split_tensors = split_tensors + total_padding
     return split_tensors
 
-def pad_x(to_pad, tensor = [0,0,0]):
+def pad_x(to_pad, tensor = [SILENCE,SILENCE,SILENCE]):
     total_padding_x = []
     for i in range(to_pad):
         total_padding_x.append(torch.tensor(tensor).long())
@@ -187,7 +190,7 @@ def pad_x(to_pad, tensor = [0,0,0]):
 
     return total_padding_x
 
-def pad_y(to_pad, tensor = [0,0,0,0,0,0]):
+def pad_y(to_pad, tensor = [SILENCE,SILENCE,SILENCE,SILENCE,SILENCE,SILENCE]):
     total_padding_y = []
     for i in range(to_pad):
         total_padding_y.append(torch.tensor(tensor).long())
@@ -320,9 +323,7 @@ def join_score(x: torch.Tensor, y: torch.Tensor):
     b = y[:,2]
 
     generated = torch.stack([s,a,t,b,acc,fb], dim = 1)
-    # add a line of silence
-    silence = torch.tensor([[SILENCE,SILENCE,SILENCE,SILENCE,SILENCE,SILENCE]]).to(device)
-    generated = torch.cat((generated, silence)) 
+
 
     return generated
 
@@ -347,6 +348,9 @@ def eval_model(model_path, token_path, split, test_file, parameters, prefix="", 
 
             generated = generated.cpu()
 
+            if not path.exists("temp"):
+                makedirs("temp")
+                
             generated_path = path.join("temp", prefix+test_dataset.getname(i)+".pt")
 
             torch.save({
@@ -486,14 +490,14 @@ parameters = {
     "normalisation": "both", # dropout, layer (short for layerNorm), or both
 }
 
-SILENCE = 128
+
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description = "Train and/or evaluate a RNN model on a dataset of BCFB scores.")
     parser.add_argument("model", help="Filename where the model should be found or saved to")
     parser.add_argument("type", choices=["train", "eval", "both"], type=str.lower, default="both")
-    parser.add_argument("--folder", "--f", default="artifacts/")
+    parser.add_argument("--folder", "--f", default="artifacts")
     parser.add_argument("--tokens", default="230_tokens.pkl")
     parser.add_argument("--train-file", default="230_preprocessed.pt")
     parser.add_argument("--test-file", default="230_preprocessed_test.pt")
@@ -510,11 +514,14 @@ if __name__ == "__main__":
             parameters = json.load(file)
             parameter = parameters["parameters"]
 
+    if not path.exists(args.folder) and args.type == "train":
+        makedirs(args.folder)
+
     meta_params = {
-        "tokens":args.folder+ args.tokens,
-        "train_file": args.folder + args.train_file,
-        "test_file": args.folder + args.test_file,
-        "model_path": args.folder + args.model,
+        "tokens":args.folder+ "/" + args.tokens,
+        "train_file": args.folder + "/" + args.train_file,
+        "test_file": args.folder + "/" + args.test_file,
+        "model_path": args.folder + "/" + args.model,
         "type": args.type,
         "prefix":args.eval_prefix,
         "randomness_threshold": args.randomness

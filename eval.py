@@ -120,7 +120,12 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, is_ML, loc
         first = pitches[i]
         second = pitches[i+1]
 
-        fb_item = None if chord_checks["incomplete"]==False else fb_list[i]  
+        try:
+            fb_item = None if chord_checks["incomplete"]==False else fb_list[i]  
+        except IndexError:
+            print("No more items in fb_list. Fb_item defaults to None.")
+            fb_item = None
+
         local_cost = eval_chord(first, chord_checks, local_adjust,analysed_key, fb_item)
         transition_cost = trans_adjust * eval_transitions(first, second, trans_checks)
 
@@ -137,8 +142,14 @@ def rules_based_eval(score, chord_checks, trans_checks, analysed_key, is_ML, loc
     first = pitches[size - 2]
     second = pitches[size - 1]
 
-    fb_item_2 = None if chord_checks["incomplete"] == False else fb_list[size-2]  
-    fb_item_1 = None if chord_checks["incomplete"] == False else fb_list[size-1]  
+    try:
+        fb_item_2 = None if chord_checks["incomplete"] == False else fb_list[size-2]  
+        fb_item_1 = None if chord_checks["incomplete"] == False else fb_list[size-1] 
+    except IndexError:
+        print("No more items in fb_list. Fb_items default to None.")
+        fb_item_2 = None
+        fb_item_1 = None
+
     local_cost = eval_chord(first, chord_checks, local_adjust, analysed_key,  fb_item_2) + eval_chord(second, chord_checks, local_adjust,analysed_key, fb_item_1)
     transition_cost = eval_transitions(first, second, trans_checks)
     total = local_cost + transition_cost
@@ -236,36 +247,44 @@ def eval_chord(chord, checks: dict, adjust_factor,  analyzed_key, fb= None):
         cost += chord_costs["close"]
     
     if (checks["range"]):
-        (s, a, t, b) = chord
-        s = s.frequency
-        a = a.frequency
-        t = t.frequency
-        b = b.frequency
+        if (len(chord) != 4):
+            print("Chord does not have 4 notes. Vocal range check skipped.")
+        else:
+            (s, a, t, b) = chord
+            s = s.frequency
+            a = a.frequency
+            t = t.frequency
+            b = b.frequency
 
-        # check to see if notes fall out of vocal ranges
-        if ( s < vocal_ranges["s"][0] or s > vocal_ranges["s"][1]):
-            cost +=chord_costs["not_in_range"]
-        if ( a < vocal_ranges["a"][0] or a > vocal_ranges["a"][1]):
-            cost +=chord_costs["not_in_range"]
-        if ( t < vocal_ranges["t"][0] or t > vocal_ranges["t"][1]):
-            cost +=chord_costs["not_in_range"]
-        if ( b < vocal_ranges["b"][0] or b > vocal_ranges["b"][1]):
-            cost +=chord_costs["not_in_range"]
+            # check to see if notes fall out of vocal ranges
+            if ( s < vocal_ranges["s"][0] or s > vocal_ranges["s"][1]):
+                cost +=chord_costs["not_in_range"]
+            if ( a < vocal_ranges["a"][0] or a > vocal_ranges["a"][1]):
+                cost +=chord_costs["not_in_range"]
+            if ( t < vocal_ranges["t"][0] or t > vocal_ranges["t"][1]):
+                cost +=chord_costs["not_in_range"]
+            if ( b < vocal_ranges["b"][0] or b > vocal_ranges["b"][1]):
+                cost +=chord_costs["not_in_range"]
 
 
     # NOTE: currently only checks if there are explicit FB notations on the screen
     if (checks["incomplete"] and fb is not None) :
-        (s, a, t, b) = chord
-
-        # what the program thinks the realised piece's keysig is - may not be the original's
-        tonic = analyzed_key.tonic.name
-        key_scale = analyzed_key.mode
-        # print(tonic, key_scale)
-        scale = realizerScale.FiguredBassScale(tonic, key_scale)
-        pitches_to_include = scale.getPitchNames(b.nameWithOctave, fb)
-        # print(pitches_to_include)
-        if possibility.isIncomplete(chord, pitches_to_include):
+        if (len(chord) < 4):
+            print("Less than 4 notes in chord: automatically fail incomplete check.")
             cost += chord_costs["incomplete"]
+            
+        else:
+            (s, a, t, b) = chord
+
+            # what the program thinks the realised piece's keysig is - may not be the original's
+            tonic = analyzed_key.tonic.name
+            key_scale = analyzed_key.mode
+            # print(tonic, key_scale)
+            scale = realizerScale.FiguredBassScale(tonic, key_scale)
+            pitches_to_include = scale.getPitchNames(b.nameWithOctave, fb)
+            # print(pitches_to_include)
+            if possibility.isIncomplete(chord, pitches_to_include):
+                cost += chord_costs["incomplete"]
 
     if (checks["crossing"] and possibility.voiceCrossing(chord)):
         cost += chord_costs["crossing"]
@@ -476,7 +495,10 @@ def main(standalone = False, chord_checks = {
     if (scores is None):
         raise Exception("Score item is None")
     
-    realised = converter.thawStr(scores["realised"])
+    if standalone:
+        realised = converter.thawStr(scores["realised"])
+    else:
+        realised = scores["realised"]
 
     # reconstructing original score if needed
     if isinstance(scores["original"], stream.Score):
